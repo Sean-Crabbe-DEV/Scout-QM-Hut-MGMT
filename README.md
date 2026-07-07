@@ -2,7 +2,7 @@
 
 A self-hosted PHP/MariaDB management system for Scout hut bookings, maintenance tickets, equipment, inspections and asset history.
 
-## v1.3 included changes
+## v1.4 included changes
 
 - **Hut and Equipment ticket tabs** with separate `HUT-` and `EQP-` references.
 - A ticket begins by choosing **Hut** or **Equipment**. A free-text Hut location detail appears only for Hut tickets; Equipment tickets show only equipment selection.
@@ -23,6 +23,16 @@ A self-hosted PHP/MariaDB management system for Scout hut bookings, maintenance 
 - **Bookings is now labelled Hut bookings** across the navigation and page headings.
 - **Bulk equipment booking**: choose a list of equipment with checkboxes, set quantities, optionally link to a hut booking, then submit one event request for approval.
 - External users are now restricted to a minimal account: hut availability, their own hut booking requests, and reporting issues. Equipment, ticket administration, maintenance, settings and all internal data are blocked.
+
+
+
+### v1.4 visual and navigation update
+
+- The left navigation is now **Scouts Red** (`#ED3F23`) with clearer active-page styling and grouped links.
+- The **Open tickets** dashboard card is Scout Purple again, while urgent issues remain red.
+- Removed the emergency/immediate-danger warning from the public issue-report page.
+- Refreshed the overall interface with softer page backgrounds, larger cards, improved form controls, clearer status surfaces, more readable tables, stronger spacing and mobile-friendly navigation.
+- The fixed header remains in place while content scrolls below it.
 
 ## Core permission rules
 
@@ -68,11 +78,11 @@ sudo bash update.sh
 
 ### Updating a current CT before GitHub is populated
 
-This release also includes `deploy-update.sh`, which keeps the existing `.env`, uploaded files and backups. Extract the downloaded v1.3 ZIP, then run:
+This release also includes `deploy-update.sh`, which keeps the existing `.env`, uploaded files and backups. Extract the downloaded v1.4 ZIP, then run:
 
 ```bash
-cd /path/to/scout-hut-mgmt-v1.3
-sudo bash deploy-update.sh /path/to/scout-hut-mgmt-v1.3
+cd /path/to/scout-hut-mgmt-v1.4
+sudo bash deploy-update.sh /path/to/scout-hut-mgmt-v1.4
 ```
 
 Use this instead of re-running `install.sh`.

@@ -2,6 +2,15 @@
 declare(strict_types=1);
 require __DIR__ . '/../app/bootstrap.php';
 
+function nav_item(string $href, string $icon, string $label, bool $exact = false): void
+{
+    $current = rtrim((string)(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/'), '/') ?: '/';
+    $isActive = $exact
+        ? $current === $href
+        : ($current === $href || ($href !== '/' && str_starts_with($current, rtrim($href, '/') . '/')));
+    ?><a class="nav-link<?= $isActive ? ' is-active' : '' ?>" href="<?= e($href) ?>"<?= $isActive ? ' aria-current="page"' : '' ?>><span class="nav-icon" aria-hidden="true"><?= e($icon) ?></span><span><?= e($label) ?></span></a><?php
+}
+
 function page_start(string $title, bool $public = false): void
 {
     $user = current_user();
@@ -11,18 +20,31 @@ function page_start(string $title, bool $public = false): void
     $logoSvg = is_file(__DIR__ . '/assets/brand/group-logo-red.svg') ? '/assets/brand/group-logo-red.svg' : (is_file(__DIR__ . '/assets/brand/group-logo-red.png') ? '/assets/brand/group-logo-red.png' : null);
     ?><!doctype html>
     <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-    <title><?= e($title) ?> · <?= e($group) ?></title><link rel="stylesheet" href="/assets/css/app.css">
+    <title><?= e($title) ?> · <?= e($group) ?></title><link rel="stylesheet" href="/assets/css/app.css?v=1.4">
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800;6..12,900&display=swap" rel="stylesheet"></head><body>
     <header class="topbar"><div class="brand"><?php if ($logoSvg): ?><img src="<?= e($logoSvg) ?>" alt="<?= e($group) ?>"><?php else: ?><span class="brand-mark">⚜</span><?php endif; ?><div><strong><?= e($group) ?></strong><span>Hut Management</span></div></div>
     <div class="top-actions"><?php if ($user): ?><span class="muted">Signed in as <?= e($user['name']) ?></span><form method="post" action="/logout" class="inline"><?= csrf_field() ?><button class="link-button">Sign out</button></form><?php else: ?><a href="/login">Log in</a><?php endif; ?></div></header>
     <?php if (!$public && $user): ?>
-    <aside class="sidebar"><nav>
+    <aside class="sidebar" aria-label="Primary navigation"><nav class="sidebar-nav">
       <?php if (is_external_user()): ?>
-        <a href="/dashboard">Dashboard</a><a href="/availability">Hut availability</a><a href="/bookings">My hut bookings</a><a href="/bookings/new">Request hut booking</a><a href="/report-problem">Report an issue</a>
+        <p class="nav-label">Your account</p>
+        <?php nav_item('/dashboard', '⌂', 'Dashboard', true); ?>
+        <?php nav_item('/availability', '◫', 'Hut availability'); ?>
+        <?php nav_item('/bookings', '▤', 'My hut bookings', true); ?>
+        <?php nav_item('/bookings/new', '+', 'Request hut booking'); ?>
+        <p class="nav-label nav-label-spaced">Help</p>
+        <?php nav_item('/report-problem', '!', 'Report an issue', true); ?>
       <?php else: ?>
-        <a href="/dashboard">Dashboard</a><a href="/bookings">Hut bookings</a><a href="/tickets">Tickets</a><a href="/hut">Hut</a><a href="/equipment">Equipment</a><a href="/equipment-bookings">Equipment bookings</a>
-        <?php if (is_admin()): ?><hr><a href="/users">Users</a><a href="/roles">Groups &amp; roles</a><a href="/settings">System settings</a><?php endif; ?>
+        <p class="nav-label">Overview</p>
+        <?php nav_item('/dashboard', '⌂', 'Dashboard', true); ?>
+        <p class="nav-label nav-label-spaced">Manage</p>
+        <?php nav_item('/bookings', '▤', 'Hut bookings'); ?>
+        <?php nav_item('/tickets', '!', 'Tickets'); ?>
+        <?php nav_item('/hut', '⌂', 'Hut'); ?>
+        <?php nav_item('/equipment', '▣', 'Equipment'); ?>
+        <?php nav_item('/equipment-bookings', '✓', 'Equipment bookings'); ?>
+        <?php if (is_admin()): ?><p class="nav-label nav-label-spaced">Administration</p><?php nav_item('/users', '♙', 'Users'); nav_item('/roles', '⚙', 'Groups & roles'); nav_item('/settings', '◌', 'System settings'); ?><?php endif; ?>
       <?php endif; ?>
     </nav></aside><main class="content">
     <?php else: ?><main class="public-content"><?php endif; ?>
@@ -207,7 +229,6 @@ try {
     if ($path === '/report-problem') {
         if ($method === 'POST') { create_ticket_from_request(true); }
         page_start('Report a problem', true); heading('Report a problem at the Scout Hut', 'Help us keep the hut safe, clean and ready for everyone.'); ?>
-        <div class="alert warning"><strong>Emergency or immediate danger?</strong> Call 999 first for fire, serious injury, major flooding, a suspected gas leak or serious electrical danger. Do not rely on this form for emergency response.</div>
         <?php ticket_form(all('SELECT * FROM hut_areas ORDER BY name'), all('SELECT * FROM equipment WHERE current_status NOT IN ("Disposed","Lost") ORDER BY name'), true); page_end(true); exit;
     }
 
@@ -235,7 +256,7 @@ try {
         $equipmentPending = one("SELECT COUNT(*) AS total FROM equipment_bookings WHERE status IN ('Requested','Awaiting approval')")['total'];
         $bookingCount = one("SELECT COUNT(*) AS total FROM hut_bookings WHERE starts_at >= NOW() AND status IN ('Approved','Confirmed')")['total'];
         page_start('Dashboard'); heading('Dashboard', 'A quick view of the hut, equipment and jobs that need attention.'); ?>
-        <?php if (is_external_user()): $myBookings=(int)(one("SELECT COUNT(*) total FROM hut_bookings WHERE requester_user_id=? AND starts_at>=NOW() AND status IN ('Requested','Awaiting approval','Approved','Confirmed')",[current_user()['id']])['total']??0); ?><section class="metrics external-metrics"><a class="metric navy" href="/bookings"><span>My upcoming bookings</span><strong><?=e((string)$myBookings)?></strong><small>View my hut bookings</small></a><a class="metric red" href="/report-problem"><span>Report an issue</span><strong>!</strong><small>Tell us about a problem</small></a></section><section class="card"><h2>What you can do</h2><p>Check when the hut is available, request a booking, and report any issues you find.</p><div class="actions"><a class="button primary" href="/bookings/new">Request hut booking</a><a class="button secondary" href="/availability">View hut availability</a></div></section><?php else: ?><section class="metrics"><a class="metric red" href="/tickets"><span>Open tickets</span><strong><?= e((string)$open) ?></strong><small>View tickets</small></a><a class="metric red" href="/tickets"><span>Urgent issues</span><strong><?= e((string)$urgent) ?></strong><small>Needs action</small></a><a class="metric orange" href="/equipment-bookings"><span>Equipment requests</span><strong><?= e((string)$equipmentPending) ?></strong><small><?= can_approve_equipment() ? 'Awaiting approval' : 'View requests' ?></small></a><a class="metric navy" href="/bookings"><span>Upcoming hut bookings</span><strong><?= e((string)$bookingCount) ?></strong><small>Next 30 days</small></a></section><section class="two-col"><article class="card"><h2>Quick actions</h2><div class="stack"><a class="button primary" href="/tickets/new">Report an internal issue</a><a class="button secondary" href="/bookings/new">Request hut booking</a><?php if (is_admin()): ?><a class="button secondary" href="/equipment/new">Add equipment</a><?php endif; ?></div></article><article class="card"><h2>Permission summary</h2><p><?= e(implode(', ', array_column(current_user()['roles'], 'name')) ?: 'No roles assigned') ?></p><p class="muted"><?= can_manage_tickets() ? 'You can manage tickets.' : 'You can report and view your own tickets.' ?> <?= can_approve_equipment() ? 'You can approve equipment bookings.' : '' ?></p></article></section><?php endif; ?><?php page_end(); exit;
+        <?php if (is_external_user()): $myBookings=(int)(one("SELECT COUNT(*) total FROM hut_bookings WHERE requester_user_id=? AND starts_at>=NOW() AND status IN ('Requested','Awaiting approval','Approved','Confirmed')",[current_user()['id']])['total']??0); ?><section class="metrics external-metrics"><a class="metric navy" href="/bookings"><span>My upcoming bookings</span><strong><?=e((string)$myBookings)?></strong><small>View my hut bookings</small></a><a class="metric red" href="/report-problem"><span>Report an issue</span><strong>!</strong><small>Tell us about a problem</small></a></section><section class="card"><h2>What you can do</h2><p>Check when the hut is available, request a booking, and report any issues you find.</p><div class="actions"><a class="button primary" href="/bookings/new">Request hut booking</a><a class="button secondary" href="/availability">View hut availability</a></div></section><?php else: ?><section class="metrics"><a class="metric purple" href="/tickets"><span>Open tickets</span><strong><?= e((string)$open) ?></strong><small>View tickets</small></a><a class="metric red" href="/tickets"><span>Urgent issues</span><strong><?= e((string)$urgent) ?></strong><small>Needs action</small></a><a class="metric orange" href="/equipment-bookings"><span>Equipment requests</span><strong><?= e((string)$equipmentPending) ?></strong><small><?= can_approve_equipment() ? 'Awaiting approval' : 'View requests' ?></small></a><a class="metric navy" href="/bookings"><span>Upcoming hut bookings</span><strong><?= e((string)$bookingCount) ?></strong><small>Next 30 days</small></a></section><section class="two-col"><article class="card"><h2>Quick actions</h2><div class="stack"><a class="button primary" href="/tickets/new">Report an internal issue</a><a class="button secondary" href="/bookings/new">Request hut booking</a><?php if (is_admin()): ?><a class="button secondary" href="/equipment/new">Add equipment</a><?php endif; ?></div></article><article class="card"><h2>Permission summary</h2><p><?= e(implode(', ', array_column(current_user()['roles'], 'name')) ?: 'No roles assigned') ?></p><p class="muted"><?= can_manage_tickets() ? 'You can manage tickets.' : 'You can report and view your own tickets.' ?> <?= can_approve_equipment() ? 'You can approve equipment bookings.' : '' ?></p></article></section><?php endif; ?><?php page_end(); exit;
     }
 
     if ($path === '/tickets/new') {

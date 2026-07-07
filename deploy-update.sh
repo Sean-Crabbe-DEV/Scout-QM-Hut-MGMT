@@ -12,7 +12,7 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 if [[ -z "$SOURCE_DIR" || ! -f "$SOURCE_DIR/public/index.php" ]]; then
-  echo "Usage: sudo bash deploy-update.sh /path/to/extracted/scout-hut-mgmt-v1.3"
+  echo "Usage: sudo bash deploy-update.sh /path/to/extracted/scout-hut-mgmt-v1.4"
   exit 1
 fi
 if [[ ! -f "$APP_DIR/.env" ]]; then
@@ -33,16 +33,15 @@ if command -v mysqldump >/dev/null 2>&1; then
   mysqldump --single-transaction --routines --triggers \
     -h "${DB_HOST:-127.0.0.1}" -P "${DB_PORT:-3306}" \
     -u "$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" \
-    | gzip > "$BACKUP_DIR/database-before-v1.3-${STAMP}.sql.gz"
+    | gzip > "$BACKUP_DIR/database-before-v1.4-${STAMP}.sql.gz"
 fi
-cp "$APP_DIR/.env" "$BACKUP_DIR/env-before-v1.3-${STAMP}.backup"
+cp "$APP_DIR/.env" "$BACKUP_DIR/env-before-v1.4-${STAMP}.backup"
 
 # Preserve runtime data and credentials. --delete removes obsolete application files only.
 rsync -a --delete \
   --exclude='.env' \
   --exclude='storage/' \
   --exclude='.git/' \
-  --exclude='deploy-update.sh' \
   "$SOURCE_DIR/" "$APP_DIR/"
 
 mkdir -p "$APP_DIR/storage/uploads" "$APP_DIR/storage/logs" "$APP_DIR/storage/backups"
@@ -60,5 +59,5 @@ PHP_SERVICE="$(systemctl list-unit-files --type=service | awk '/^php[0-9.]+-fpm\
 if [[ -n "$PHP_SERVICE" ]]; then systemctl restart "$PHP_SERVICE"; fi
 nginx -t && systemctl reload nginx
 
-echo "Scout Hut Management v1.3 deployed."
-echo "Backup: $BACKUP_DIR/database-before-v1.3-${STAMP}.sql.gz"
+echo "Scout Hut Management v1.4 deployed."
+echo "Backup: $BACKUP_DIR/database-before-v1.4-${STAMP}.sql.gz"

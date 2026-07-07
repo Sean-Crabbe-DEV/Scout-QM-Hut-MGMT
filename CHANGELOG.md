@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.4 — Navigation and interface refresh
+
+- Made the desktop left navigation Scouts Red and added active-page highlighting plus logical navigation groups.
+- Restored Scout Purple to the Open tickets dashboard metric.
+- Removed the emergency/immediate-danger notice from the public report form.
+- Refreshed cards, forms, tables, ticket tabs, buttons, metric cards and the fixed header for a more modern, easier-to-use interface.
+- Kept the mobile navigation responsive and horizontally scrollable.
+
 ## v1.3
 
 - Redesigned the public/internal issue-reporting form with Hut/Equipment choice cards.
