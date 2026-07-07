@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.11
+- Added a real server-generated **Download PDF** export for equipment booking summaries.
+- The export is an A4 portrait PDF with the Group logo, booking reference, event, status, booking user, printed date/time, collection and return details, equipment holder, item check boxes, Asset IDs, quantities, condition-out fields, notes and signatures.
+- The existing browser-based print screen is now labelled **Print preview** to make the difference clear.
+
 ## v1.9
 - Redesigned the printable equipment booking summary as a logo-branded handover sheet.
 - Added Event, Status, Booking user, Printed on date/time, booking reference and collection/return dates.

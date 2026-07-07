@@ -20,7 +20,7 @@ function page_start(string $title, bool $public = false): void
     $logoSvg = is_file(__DIR__ . '/assets/brand/group-logo-red.svg') ? '/assets/brand/group-logo-red.svg' : (is_file(__DIR__ . '/assets/brand/group-logo-red.png') ? '/assets/brand/group-logo-red.png' : null);
     ?><!doctype html>
     <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-    <title><?= e($title) ?> · <?= e($group) ?></title><link rel="stylesheet" href="/assets/css/app.css?v=1.9">
+    <title><?= e($title) ?> · <?= e($group) ?></title><link rel="stylesheet" href="/assets/css/app.css?v=1.11">
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800;6..12,900&display=swap" rel="stylesheet"></head><body>
     <header class="topbar"><div class="brand"><?php if ($logoSvg): ?><img src="<?= e($logoSvg) ?>" alt="<?= e($group) ?>"><?php else: ?><span class="brand-mark">⚜</span><?php endif; ?><div><strong><?= e($group) ?></strong><span>Hut Management</span></div></div>
@@ -118,6 +118,133 @@ function status_badge(string $status): string
 {
     $class = strtolower(preg_replace('/[^a-z0-9]+/i', '-', $status));
     return '<span class="badge badge-' . e(trim($class, '-')) . '">' . e($status) . '</span>';
+}
+
+function pdf_asset_data_uri(string $relativePath): ?string
+{
+    $relativePath = ltrim($relativePath, '/');
+    $path = __DIR__ . '/' . $relativePath;
+    if (!is_file($path) || !is_readable($path)) {
+        return null;
+    }
+
+    $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    $mime = match ($extension) {
+        'svg' => 'image/svg+xml',
+        'png' => 'image/png',
+        'jpg', 'jpeg' => 'image/jpeg',
+        'webp' => 'image/webp',
+        default => null,
+    };
+    if ($mime === null) {
+        return null;
+    }
+
+    $contents = file_get_contents($path);
+    return $contents === false ? null : 'data:' . $mime . ';base64,' . base64_encode($contents);
+}
+
+function equipment_booking_pdf_html(array $booking, array $items): string
+{
+    $group = setting('group_name', env('APP_NAME', 'Scout Hut Management'));
+    $logo = is_file(__DIR__ . '/assets/brand/group-logo-red.svg')
+        ? pdf_asset_data_uri('assets/brand/group-logo-red.svg')
+        : pdf_asset_data_uri('assets/brand/group-logo-red.png');
+    $printedAt = date('d M Y, H:i');
+    $holderName = trim((string)($booking['holder_name'] ?? ''));
+    $holderEmail = trim((string)($booking['holder_email'] ?? ''));
+
+    ob_start();
+    ?>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+@page { margin: 10mm 10mm 12mm; }
+* { box-sizing: border-box; }
+body { margin: 0; color: #1d1d1b; font-family: DejaVu Sans, Arial, sans-serif; font-size: 9pt; line-height: 1.35; }
+.header { padding: 0 0 10px; border-bottom: 3px solid #ed3f23; }
+.brand-table, .meta-table, .items-table, .signatures { width: 100%; border-collapse: collapse; }
+.brand-table td { vertical-align: top; }
+.logo-cell { width: 48mm; }
+.logo { width: 42mm; height: 13mm; object-fit: contain; object-position: left center; }
+.group-name { margin: 0 0 2px; color: #ed3f23; font-size: 7.5pt; font-weight: bold; letter-spacing: .6pt; text-transform: uppercase; }
+h1 { margin: 0; font-size: 16pt; line-height: 1.15; }
+.subtitle { margin: 3px 0 0; color: #5f5f5f; font-size: 8.5pt; }
+.reference { text-align: right; }
+.reference-label, .label { display: block; color: #5f5f5f; font-size: 7pt; font-weight: bold; letter-spacing: .45pt; text-transform: uppercase; }
+.reference-value { display: block; margin-top: 2px; color: #003982; font-family: DejaVu Sans Mono, monospace; font-size: 10pt; font-weight: bold; }
+.meta-table { margin-top: 10px; border: 1px solid #d9d9d9; }
+.meta-table td { width: 50%; padding: 7px 8px; border-right: 1px solid #d9d9d9; border-bottom: 1px solid #d9d9d9; vertical-align: top; }
+.meta-table tr:last-child td { border-bottom: 0; }
+.meta-table td:nth-child(2n) { border-right: 0; }
+.meta-value { display: block; margin-top: 2px; font-weight: bold; }
+.meta-small { display: block; margin-top: 1px; color: #5f5f5f; font-size: 7.8pt; }
+.holder { margin-top: 8px; padding: 7px 8px; border: 1px solid #d9d9d9; background: #f8f8f8; }
+.holder strong { margin-left: 5px; }
+.items-table { margin-top: 10px; border: 1px solid #9d9894; table-layout: fixed; }
+.items-table th { padding: 6px 5px; background: #f3f0ef; border-bottom: 1.5px solid #9d9894; color: #262321; font-size: 7.3pt; text-align: left; text-transform: uppercase; }
+.items-table td { min-height: 12mm; padding: 6px 5px; border-bottom: 1px solid #d8d4d1; vertical-align: middle; overflow-wrap: break-word; }
+.items-table tr:nth-child(even) td { background: #fcfbfb; }
+.items-table tr:last-child td { border-bottom: 0; }
+.col-check { width: 9%; text-align: center !important; }
+.col-asset { width: 19%; }
+.col-item { width: 42%; }
+.col-qty { width: 10%; text-align: center !important; }
+.col-condition { width: 20%; }
+.check-box { display: inline-block; width: 5.2mm; height: 5.2mm; border: 1.4px solid #322f2d; }
+.asset-id { color: #003982; font-family: DejaVu Sans Mono, monospace; font-size: 8pt; font-weight: bold; }
+.item-name { font-weight: bold; }
+.item-category { display: block; margin-top: 2px; color: #5f5f5f; font-size: 7.2pt; }
+.qty { font-size: 10pt; font-weight: bold; }
+.condition { display: block; min-height: 6mm; border-bottom: 1px dashed #8d8884; font-size: 7.5pt; font-weight: bold; }
+.notes { width: 100%; margin-top: 10px; border-collapse: separate; border-spacing: 8px 0; margin-left: -8px; margin-right: -8px; }
+.notes td { width: 50%; vertical-align: top; }
+.write-area { height: 30mm; margin-top: 4px; border: 1px solid #bcb8b5; }
+.signatures { margin-top: 10px; }
+.signatures td { width: 33.33%; padding-right: 7px; vertical-align: top; }
+.signature-line { height: 12mm; border-bottom: 1px solid #5d5855; }
+.footer-note { margin: 9px 0 0; color: #514c49; font-size: 7.2pt; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <table class="brand-table"><tr>
+      <td class="logo-cell"><?php if ($logo): ?><img class="logo" src="<?= e($logo) ?>" alt="<?= e($group) ?>"><?php else: ?><div style="font-size:20pt;color:#ed3f23">⚜</div><?php endif; ?></td>
+      <td><p class="group-name"><?= e($group) ?></p><h1>Equipment Booking Summary</h1><p class="subtitle">Kit issue and return checklist</p></td>
+      <td class="reference"><span class="reference-label">Booking reference</span><span class="reference-value"><?= e($booking['reference']) ?></span></td>
+    </tr></table>
+  </div>
+
+  <table class="meta-table">
+    <tr><td><span class="label">Event</span><span class="meta-value"><?= e($booking['title']) ?></span></td><td><span class="label">Status</span><span class="meta-value"><?= e($booking['status']) ?></span></td></tr>
+    <tr><td><span class="label">Booking user</span><span class="meta-value"><?= e($booking['requester_name']) ?></span><span class="meta-small"><?= e($booking['requester_email']) ?></span></td><td><span class="label">Date printed</span><span class="meta-value"><?= e($printedAt) ?></span></td></tr>
+    <tr><td><span class="label">Collection from</span><span class="meta-value"><?= e(date('d M Y, H:i', strtotime($booking['starts_at']))) ?></span></td><td><span class="label">Return by</span><span class="meta-value"><?= e(date('d M Y, H:i', strtotime($booking['ends_at']))) ?></span></td></tr>
+  </table>
+
+  <?php if ($holderName !== ''): ?><div class="holder"><span class="label" style="display:inline">Equipment currently issued to</span><strong><?= e($holderName) ?></strong><?php if ($holderEmail !== ''): ?> <span class="meta-small" style="display:inline">(<?= e($holderEmail) ?>)</span><?php endif; ?></div><?php endif; ?>
+
+  <table class="items-table">
+    <thead><tr><th class="col-check">Check</th><th class="col-asset">Asset ID</th><th class="col-item">Equipment item</th><th class="col-qty">Qty</th><th class="col-condition">Status / condition out</th></tr></thead>
+    <tbody>
+    <?php foreach ($items as $item):
+        $condition = trim((string)($item['condition_out'] ?? ''));
+        if ($condition === '') { $condition = $booking['status'] === 'Checked out' ? 'Not recorded' : 'To confirm at issue'; }
+        $quantity = $item['quantity_issued'] ?: $item['quantity_approved'] ?: $item['quantity_requested'];
+    ?>
+      <tr><td class="col-check"><span class="check-box"></span></td><td class="asset-id"><?= e($item['asset_id']) ?></td><td><span class="item-name"><?= e($item['name']) ?></span><?php if ($item['category']): ?><span class="item-category"><?= e($item['category']) ?></span><?php endif; ?></td><td class="col-qty"><span class="qty"><?= e((string)$quantity) ?></span></td><td><span class="condition"><?= e($condition) ?></span></td></tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+
+  <table class="notes"><tr><td><span class="label">Issue notes</span><div class="write-area"></div></td><td><span class="label">Return notes / damage</span><div class="write-area"></div></td></tr></table>
+  <table class="signatures"><tr><td><span class="label">Issued by</span><div class="signature-line"></div></td><td><span class="label">Received by</span><div class="signature-line"></div></td><td><span class="label">Returned to</span><div class="signature-line"></div></td></tr></table>
+  <p class="footer-note">Please check each item before it leaves and again on return. Report missing, damaged or unsafe equipment through the Hut Management System.</p>
+</body>
+</html>
+    <?php
+    return (string)ob_get_clean();
 }
 
 function is_setup_available(): bool
@@ -512,6 +639,42 @@ try {
         fclose($out); exit;
     }
 
+    if (preg_match('#^/equipment-bookings/(\d+)/export\.pdf$#', $path, $m) && $method === 'GET') {
+        $booking = one('SELECT * FROM equipment_bookings WHERE id=?', [(int)$m[1]]);
+        if (!$booking) { http_response_code(404); exit('Equipment booking not found.'); }
+        if (!can_approve_equipment() && (int)$booking['requester_user_id'] !== (int)current_user()['id']) { http_response_code(403); exit('You cannot export this booking.'); }
+
+        $autoload = APP_ROOT . '/vendor/autoload.php';
+        if (!is_file($autoload)) {
+            http_response_code(503);
+            exit('PDF generation is not installed yet. Run the v1.11 deploy update again so Composer can install the PDF component.');
+        }
+        require_once $autoload;
+        if (!class_exists(\Dompdf\Dompdf::class)) {
+            http_response_code(503);
+            exit('PDF generation is not available. Run the v1.11 deploy update again so Composer can install the PDF component.');
+        }
+
+        $items = all('SELECT ebi.*, e.asset_id, e.name, e.category FROM equipment_booking_items ebi JOIN equipment e ON e.id=ebi.equipment_id WHERE ebi.equipment_booking_id=? ORDER BY e.category,e.name', [$booking['id']]);
+        $options = new \Dompdf\Options();
+        $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('isRemoteEnabled', false);
+        $options->set('isHtml5ParserEnabled', true);
+        $dompdf = new \Dompdf\Dompdf($options);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->loadHtml(equipment_booking_pdf_html($booking, $items), 'UTF-8');
+        $dompdf->render();
+
+        $filename = 'equipment-booking-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $booking['reference']) . '.pdf';
+        $pdfOutput = $dompdf->output();
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . strlen($pdfOutput));
+        header('Cache-Control: private, no-store, max-age=0');
+        echo $pdfOutput;
+        exit;
+    }
+
     if (preg_match('#^/equipment-bookings/(\d+)/print$#', $path, $m) && $method === 'GET') {
         $booking = one('SELECT * FROM equipment_bookings WHERE id=?', [(int)$m[1]]);
         if (!$booking) { http_response_code(404); exit('Equipment booking not found.'); }
@@ -544,7 +707,7 @@ try {
           <section class="print-signatures"><div><span class="label">Issued by</span><div class="signature-line"></div></div><div><span class="label">Received by</span><div class="signature-line"></div></div><div><span class="label">Returned to</span><div class="signature-line"></div></div></section>
           <p class="print-footer-note">Please check each item before it leaves and again on return. Report missing, damaged or unsafe equipment through the Hut Management System.</p>
         </section>
-        <div class="form-actions print-actions"><a class="button secondary" href="/equipment-bookings/<?=$booking['id']?>">Back to booking</a><button class="button primary" onclick="window.print()">Print / Save as PDF</button></div><?php page_end(); exit;
+        <div class="form-actions print-actions"><a class="button secondary" href="/equipment-bookings/<?=$booking['id']?>">Back to booking</a><a class="button primary" href="/equipment-bookings/<?=$booking['id']?>/export.pdf">Download PDF</a><button class="button secondary" onclick="window.print()">Print preview</button></div><?php page_end(); exit;
     }
 
     if (preg_match('#^/equipment-bookings/(\d+)/issue$#', $path, $m) && $method === 'POST') {
@@ -616,7 +779,7 @@ try {
         $items = all('SELECT ebi.*,e.asset_id,e.name,e.category,e.quantity_available,e.current_status FROM equipment_booking_items ebi JOIN equipment e ON e.id=ebi.equipment_id WHERE ebi.equipment_booking_id=? ORDER BY e.category,e.name', [$booking['id']]);
         $history = all('SELECT ech.*,u.name performed_by_name,e.name equipment_name,e.asset_id FROM equipment_custody_history ech JOIN equipment e ON e.id=ech.equipment_id LEFT JOIN users u ON u.id=ech.performed_by_user_id WHERE ech.equipment_booking_id=? ORDER BY ech.created_at DESC', [$booking['id']]);
         page_start('Equipment booking '.$booking['reference']); heading($booking['reference'].' — '.$booking['title'], 'Issue, return and export the equipment list.'); ?>
-        <div class="page-actions"><a class="button secondary" href="/equipment-bookings/<?=$booking['id']?>/export.csv">Export CSV</a><a class="button secondary" href="/equipment-bookings/<?=$booking['id']?>/print" target="_blank">Print summary</a></div>
+        <div class="page-actions"><a class="button primary" href="/equipment-bookings/<?=$booking['id']?>/export.pdf">Download PDF</a><a class="button secondary" href="/equipment-bookings/<?=$booking['id']?>/export.csv">Export CSV</a><a class="button secondary" href="/equipment-bookings/<?=$booking['id']?>/print" target="_blank">Print preview</a></div>
         <section class="card detail-grid"><div><span class="label">Status</span><?=status_badge($booking['status'])?></div><div><span class="label">Requested by</span><strong><?=e($booking['requester_name'])?></strong><small><?=e($booking['requester_email'])?></small></div><div><span class="label">Issued to / responsible person</span><strong><?=e($booking['holder_name'] ?: $booking['requester_name'])?></strong><small><?=e($booking['holder_email'] ?: $booking['requester_email'])?></small></div><div><span class="label">Collection from</span><strong><?=e(date('d M Y H:i',strtotime($booking['starts_at'])))?></strong></div><div><span class="label">Return by</span><strong><?=e(date('d M Y H:i',strtotime($booking['ends_at'])))?></strong></div><div><span class="label">Approved by</span><strong><?=e($booking['approved_by_name'] ?: 'Not yet approved')?></strong></div></section>
         <section class="card"><h2>Equipment list</h2><div class="table-wrap"><table><thead><tr><th>Asset ID</th><th>Item</th><th>Requested</th><th>Approved</th><th>Out</th><th>Returned</th><th>Outstanding</th><th>Condition</th></tr></thead><tbody><?php foreach($items as $item): $approved=(int)($item['quantity_approved'] ?? $item['quantity_requested']);$issued=(int)($item['quantity_issued'] ?? 0);$returned=(int)($item['quantity_returned'] ?? 0);?><tr><td><?=e($item['asset_id'])?></td><td><a href="/equipment/<?=$item['equipment_id']?>"><?=e($item['name'])?></a></td><td><?=$item['quantity_requested']?></td><td><?=$approved?></td><td><?=$issued?></td><td><?=$returned?></td><td><?=max(0,$issued-$returned)?></td><td><?=e($item['condition_in'] ?: $item['condition_out'] ?: '—')?></td></tr><?php endforeach;?></tbody></table></div></section>
         <?php if(can_approve_equipment() && in_array($booking['status'],['Requested','Awaiting approval'],true)): ?><section class="card action-card"><h2>Review booking</h2><p>Approve the requested quantities or decline this booking.</p><form method="post" action="/equipment-bookings/<?=$booking['id']?>/approve" class="inline"><?=csrf_field()?><input type="hidden" name="decision" value="Approved"><button class="button primary">Approve booking</button></form> <form method="post" action="/equipment-bookings/<?=$booking['id']?>/approve" class="inline"><?=csrf_field()?><input type="hidden" name="decision" value="Declined"><button class="button danger">Decline booking</button></form></section><?php endif; ?>
