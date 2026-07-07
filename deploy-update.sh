@@ -1,63 +1,69 @@
-<?php
-declare(strict_types=1);
-require __DIR__ . '/../app/bootstrap.php';
+#!/usr/bin/env bash
+# Deploy a downloaded release over an existing Ubuntu CT installation.
+# Keeps .env, storage/uploads and storage/backups intact.
+set -Eeuo pipefail
+export COMPOSER_ALLOW_SUPERUSER=1
 
-function column_exists(string $table, string $column): bool
-{
-    return (bool)one('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $column]);
-}
+APP_DIR="/var/www/scout-hut-mgmt"
+SOURCE_DIR="${1:-}"
 
-$sql = file_get_contents(__DIR__ . '/../database/schema.sql');
-if ($sql === false) throw new RuntimeException('Could not read schema.sql');
-foreach (array_filter(array_map('trim', explode(';', $sql))) as $statement) {
-    try { db()->exec($statement); }
-    catch (PDOException $exception) {
-        $message = strtolower($exception->getMessage());
-        if (!str_contains($message, 'duplicate key name') && !str_contains($message, 'already exists')) throw $exception;
-    }
-}
-if (column_exists('hut_areas', 'current_condition')) db()->exec('ALTER TABLE hut_areas DROP COLUMN current_condition');
-if (!column_exists('hut_bookings', 'whole_site')) db()->exec('ALTER TABLE hut_bookings ADD COLUMN whole_site TINYINT(1) NOT NULL DEFAULT 0 AFTER hut_area_id');
-db()->exec("CREATE TABLE IF NOT EXISTS hut_booking_areas (hut_booking_id INT UNSIGNED NOT NULL, hut_area_id INT UNSIGNED NOT NULL, PRIMARY KEY (hut_booking_id,hut_area_id), CONSTRAINT fk_hut_booking_areas_booking FOREIGN KEY (hut_booking_id) REFERENCES hut_bookings(id) ON DELETE CASCADE, CONSTRAINT fk_hut_booking_areas_area FOREIGN KEY (hut_area_id) REFERENCES hut_areas(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+if [[ $EUID -ne 0 ]]; then
+  echo "Run with sudo or as root."
+  exit 1
+fi
+if [[ -z "$SOURCE_DIR" || ! -f "$SOURCE_DIR/public/index.php" ]]; then
+  echo "Usage: sudo bash deploy-update.sh /path/to/extracted/scout-hut-mgmt-v1.14"
+  exit 1
+fi
+if [[ ! -f "$APP_DIR/.env" ]]; then
+  echo "Existing installation not found at $APP_DIR (.env is missing)."
+  exit 1
+fi
 
-// Recurring regular meetings are stored as one schedule plus confirmed weekly bookings.
-// The dated booking records keep the calendar, conflict checks and audit trail accurate.
-db()->exec("CREATE TABLE IF NOT EXISTS recurring_hut_schedules (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, title VARCHAR(180) NOT NULL, organisation_name VARCHAR(180) NULL, hut_area_id INT UNSIGNED NULL, whole_site TINYINT(1) NOT NULL DEFAULT 0, day_of_week TINYINT UNSIGNED NOT NULL, starts_on DATE NOT NULL, ends_on DATE NOT NULL, starts_time TIME NOT NULL, ends_time TIME NOT NULL, term_label VARCHAR(150) NULL, status ENUM('Active','Paused','Ended') NOT NULL DEFAULT 'Active', created_by_user_id INT UNSIGNED NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_recurring_hut_schedule_dates (starts_on, ends_on, status), INDEX idx_recurring_hut_schedule_area (hut_area_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-if (!column_exists('hut_bookings', 'recurring_schedule_id')) db()->exec('ALTER TABLE hut_bookings ADD COLUMN recurring_schedule_id INT UNSIGNED NULL AFTER whole_site');
-try { db()->exec('CREATE INDEX idx_hut_bookings_recurring_schedule ON hut_bookings(recurring_schedule_id)'); } catch (PDOException $exception) { if (!str_contains(strtolower($exception->getMessage()), 'duplicate key name')) throw $exception; }
+set -a
+# shellcheck disable=SC1090
+source "$APP_DIR/.env"
+set +a
 
-// Equipment booking custody fields and history. These are deliberately kept separate from booking status so every item has a permanent handover trail.
-if (!column_exists('equipment_bookings', 'holder_name')) db()->exec('ALTER TABLE equipment_bookings ADD COLUMN holder_name VARCHAR(150) NULL AFTER requester_email');
-if (!column_exists('equipment_bookings', 'holder_email')) db()->exec('ALTER TABLE equipment_bookings ADD COLUMN holder_email VARCHAR(190) NULL AFTER holder_name');
-if (!column_exists('equipment_bookings', 'issued_by_user_id')) db()->exec('ALTER TABLE equipment_bookings ADD COLUMN issued_by_user_id INT UNSIGNED NULL AFTER approved_at');
-if (!column_exists('equipment_bookings', 'issued_at')) db()->exec('ALTER TABLE equipment_bookings ADD COLUMN issued_at DATETIME NULL AFTER issued_by_user_id');
-if (!column_exists('equipment_bookings', 'returned_by_user_id')) db()->exec('ALTER TABLE equipment_bookings ADD COLUMN returned_by_user_id INT UNSIGNED NULL AFTER issued_at');
-if (!column_exists('equipment_bookings', 'returned_at')) db()->exec('ALTER TABLE equipment_bookings ADD COLUMN returned_at DATETIME NULL AFTER returned_by_user_id');
-db()->exec("CREATE TABLE IF NOT EXISTS equipment_custody_history (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, equipment_booking_id INT UNSIGNED NOT NULL, equipment_booking_item_id INT UNSIGNED NOT NULL, equipment_id INT UNSIGNED NOT NULL, action_type ENUM('Issued','Returned') NOT NULL, quantity INT UNSIGNED NOT NULL, holder_name VARCHAR(150) NULL, holder_email VARCHAR(190) NULL, condition_note VARCHAR(100) NULL, notes TEXT NULL, performed_by_user_id INT UNSIGNED NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, CONSTRAINT fk_custody_booking FOREIGN KEY (equipment_booking_id) REFERENCES equipment_bookings(id) ON DELETE CASCADE, CONSTRAINT fk_custody_booking_item FOREIGN KEY (equipment_booking_item_id) REFERENCES equipment_booking_items(id) ON DELETE CASCADE, CONSTRAINT fk_custody_equipment FOREIGN KEY (equipment_id) REFERENCES equipment(id) ON DELETE CASCADE, CONSTRAINT fk_custody_user FOREIGN KEY (performed_by_user_id) REFERENCES users(id) ON DELETE SET NULL, INDEX idx_equipment_custody_equipment (equipment_id, created_at), INDEX idx_equipment_custody_booking (equipment_booking_id, created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+STAMP="$(date +%Y%m%d-%H%M%S)"
+BACKUP_DIR="$APP_DIR/storage/backups"
+mkdir -p "$BACKUP_DIR"
 
-// Simplify equipment availability statuses for day-to-day use. The temporary enum keeps older installs valid while values are mapped.
-db()->exec("ALTER TABLE equipment MODIFY current_status ENUM('Available','Reserved','Checked out','Under maintenance','Unsafe — do not use','Out of service','Lost','Disposed','Booked','Damaged','In repair','Disposed of') NOT NULL DEFAULT 'Available'");
-db()->exec("UPDATE equipment SET current_status = CASE current_status
-    WHEN 'Reserved' THEN 'Booked'
-    WHEN 'Checked out' THEN 'Booked'
-    WHEN 'Under maintenance' THEN 'In repair'
-    WHEN 'Unsafe — do not use' THEN 'Damaged'
-    WHEN 'Out of service' THEN 'In repair'
-    WHEN 'Lost' THEN 'Disposed of'
-    WHEN 'Disposed' THEN 'Disposed of'
-    ELSE current_status END");
-db()->exec("ALTER TABLE equipment MODIFY current_status ENUM('Available','Booked','Damaged','In repair','Disposed of') NOT NULL DEFAULT 'Available'");
+if command -v mysqldump >/dev/null 2>&1; then
+  mysqldump --single-transaction --routines --triggers \
+    -h "${DB_HOST:-127.0.0.1}" -P "${DB_PORT:-3306}" \
+    -u "$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" \
+    | gzip > "$BACKUP_DIR/database-before-v1.14-${STAMP}.sql.gz"
+fi
+cp "$APP_DIR/.env" "$BACKUP_DIR/env-before-v1.14-${STAMP}.backup"
 
-$roles = [
- ['Admin','admin','Full access to the whole system.',['*'],1],
- ['Group Scout Leader','gsl','Legacy role; may manage bookings, equipment and tickets.',['tickets.manage','tickets.close','equipment.approve','bookings.manage','equipment.delete','bookings.delete'],1],
- ['Group Lead Volunteer','glv','May manage bookings, equipment and tickets.',['tickets.manage','tickets.close','equipment.approve','bookings.manage','equipment.delete','bookings.delete'],1],
- ['Chairperson','chairperson','May manage bookings, equipment and tickets.',['tickets.manage','tickets.close','equipment.approve','bookings.manage','equipment.delete','bookings.delete'],1],
- ['Quartermaster','qm','May manage bookings, equipment and tickets.',['tickets.manage','tickets.close','equipment.approve','bookings.manage','equipment.delete','bookings.delete'],1],
- ['Scout User','scout_user','Authenticated Scout volunteer or member.',['bookings.request','equipment.request','tickets.report'],1],
- ['External User','external_user','Approved external hut hirer.',['bookings.request','tickets.report'],1],
-];
-foreach($roles as [$name,$slug,$description,$permissions,$system]) q('INSERT INTO roles (name,slug,description,permissions,is_system) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE name=VALUES(name),description=VALUES(description),permissions=VALUES(permissions),is_system=VALUES(is_system)',[$name,$slug,$description,json_encode($permissions),$system]);
-$settings=['group_name'=>env('APP_NAME','1st Sedbury & Tidenham Scouts'),'whole_site_enabled'=>'1','smtp_host'=>'','smtp_port'=>'587','smtp_encryption'=>'tls','smtp_username'=>'','smtp_password'=>'','mail_from_address'=>env('MAIL_FROM_ADDRESS','no-reply@example.org'),'mail_from_name'=>env('MAIL_FROM_NAME','1st Sedbury & Tidenham Scouts'),'mail_reply_to'=>''];
-foreach($settings as $key=>$value) q('INSERT INTO settings (setting_key,setting_value) VALUES (?,?) ON DUPLICATE KEY UPDATE setting_key=setting_key',[$key,$value]);
-echo "Migrations and default roles completed.\n";
+# Preserve runtime data and credentials. --delete removes obsolete application files only.
+rsync -a --delete \
+  --exclude='.env' \
+  --exclude='storage/' \
+  --exclude='.git/' \
+  "$SOURCE_DIR/" "$APP_DIR/"
+
+mkdir -p "$APP_DIR/storage/uploads" "$APP_DIR/storage/logs" "$APP_DIR/storage/backups"
+if [[ -f "$APP_DIR/composer.json" ]]; then
+  if command -v composer >/dev/null 2>&1; then
+    if ! composer install --working-dir="$APP_DIR" --no-dev --prefer-dist --optimize-autoloader --no-interaction; then
+      echo "Warning: Composer dependencies could not be installed. PDF exports still work because v1.14 uses the built-in PDF renderer; SMTP email needs Composer to be fixed separately."
+    fi
+  else
+    echo "Warning: Composer is not installed. PDF exports still work; SMTP email dependencies were not refreshed."
+  fi
+fi
+php "$APP_DIR/scripts/migrate.php"
+chown -R www-data:www-data "$APP_DIR/storage"
+find "$APP_DIR/storage" -type d -exec chmod 750 {} \;
+find "$APP_DIR/storage" -type f -exec chmod 640 {} \;
+chown root:www-data "$APP_DIR/.env"
+chmod 640 "$APP_DIR/.env"
+
+PHP_SERVICE="$(systemctl list-unit-files --type=service | awk '/^php[0-9.]+-fpm\.service/ {print $1; exit}')"
+if [[ -n "$PHP_SERVICE" ]]; then systemctl restart "$PHP_SERVICE"; fi
+nginx -t && systemctl reload nginx
+
+echo "Scout Hut Management v1.14 deployed."
+echo "Backup: $BACKUP_DIR/database-before-v1.14-${STAMP}.sql.gz"
