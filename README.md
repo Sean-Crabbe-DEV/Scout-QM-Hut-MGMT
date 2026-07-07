@@ -128,3 +128,7 @@ The Equipment database list is now view-only. Admin, GSL, Chairperson and QM can
 ## v1.8 equipment handover workflow
 
 Open an approved equipment booking and use **Book selected equipment out** to record the person responsible, the quantities leaving, and their condition. Use **Book equipment back in** on return to record returned quantities, condition and any damage/repair status. Use **Export CSV** for a spreadsheet-friendly booking list or **Print summary** to print/save a PDF handover sheet.
+
+
+## v1.9
+The printable equipment booking summary has been redesigned for handover use. It includes the Group logo, booking details, date printed, a check-off box per item, condition-out details, notes and signature areas.
