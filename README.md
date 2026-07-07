@@ -2,7 +2,7 @@
 
 A self-hosted PHP/MariaDB management system for Scout hut bookings, maintenance tickets, equipment, inspections and asset history.
 
-## v1.2 included changes
+## v1.3 included changes
 
 - **Hut and Equipment ticket tabs** with separate `HUT-` and `EQP-` references.
 - A ticket begins by choosing **Hut** or **Equipment**. A free-text Hut location detail appears only for Hut tickets; Equipment tickets show only equipment selection.
@@ -14,6 +14,15 @@ A self-hosted PHP/MariaDB management system for Scout hut bookings, maintenance 
 - A cleaned settings layout, ticket tabs and clearer mobile controls.
 - The supplied Scouts logo SVG is included in a clean, red version without the copied margin/animation styles. `scripts/normalise-logo-svg.php` is also included for future approved logo replacements.
 - Installer now preserves the existing database password if it is run again, avoiding the MariaDB / `.env` mismatch that caused the earlier login error.
+
+
+- **Redesigned public issue form**: choose Hut or Equipment first, then the Nature of Problem list changes to match. Hut location details only appear for Hut reports; equipment selection only appears for Equipment reports.
+- The interface palette is now **Scouts Red** throughout; the purple navigation, tabs, focus states and secondary actions have been replaced.
+- The header is fixed at the top of the viewport while content scrolls below it.
+- **Ticket tabs redesigned** as two clear visual switcher cards for Hut tickets and Equipment tickets, each with a live count and plain-English context.
+- **Bookings is now labelled Hut bookings** across the navigation and page headings.
+- **Bulk equipment booking**: choose a list of equipment with checkboxes, set quantities, optionally link to a hut booking, then submit one event request for approval.
+- External users are now restricted to a minimal account: hut availability, their own hut booking requests, and reporting issues. Equipment, ticket administration, maintenance, settings and all internal data are blocked.
 
 ## Core permission rules
 
@@ -56,6 +65,17 @@ sudo bash update.sh
 ```
 
 `update.sh` creates a dated MariaDB and `.env` backup before pulling `main`, installing PHP packages, and running the database migration.
+
+### Updating a current CT before GitHub is populated
+
+This release also includes `deploy-update.sh`, which keeps the existing `.env`, uploaded files and backups. Extract the downloaded v1.3 ZIP, then run:
+
+```bash
+cd /path/to/scout-hut-mgmt-v1.3
+sudo bash deploy-update.sh /path/to/scout-hut-mgmt-v1.3
+```
+
+Use this instead of re-running `install.sh`.
 
 ## Logo
 

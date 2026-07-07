@@ -175,6 +175,11 @@ function is_admin(): bool
     return user_has_role('admin');
 }
 
+function is_external_user(): bool
+{
+    return user_has_role('external_user') && !is_admin() && !user_has_role(['gsl', 'chairperson', 'qm']);
+}
+
 function can_manage_tickets(?int $ticketId = null): bool
 {
     if (is_admin() || user_has_role(['gsl', 'chairperson', 'qm'])) {

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+export COMPOSER_ALLOW_SUPERUSER=1
 
 APP_DIR="/var/www/scout-hut-mgmt"
 BRANCH="main"
@@ -26,7 +27,7 @@ chmod 640 "$BACKUP_DIR/env-${STAMP}.backup"
 CURRENT="$(git rev-parse --short HEAD)"
 git fetch origin "$BRANCH"
 git reset --hard "origin/$BRANCH"
-composer install --no-dev --prefer-dist --optimize-autoloader
+composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
 mkdir -p storage/uploads storage/logs storage/backups public/assets/brand
 chown -R www-data:www-data storage
 find storage -type d -exec chmod 750 {} \;
