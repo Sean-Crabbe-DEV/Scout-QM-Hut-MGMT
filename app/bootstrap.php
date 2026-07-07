@@ -196,6 +196,16 @@ function can_approve_equipment(): bool
     return is_admin() || user_has_role(['gsl', 'chairperson', 'qm']);
 }
 
+function can_manage_hut_bookings(): bool
+{
+    return is_admin();
+}
+
+function booking_blocks_space(string $status): bool
+{
+    return in_array($status, ['Approved', 'Confirmed'], true);
+}
+
 function require_login(): void
 {
     if (!logged_in()) {

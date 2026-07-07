@@ -20,6 +20,7 @@ Usage: sudo bash install.sh [options]
   --db-password PASSWORD   Database password (generated if omitted)
   --app-url URL            Public base URL; defaults to http://DOMAIN (use https:// when behind a TLS proxy)
   --with-certbot           Install Certbot and request a certificate after Nginx is configured
+                           (do not use when Cloudflare Tunnel terminates HTTPS)
   --help                   Show this help
 USAGE
 }
@@ -41,6 +42,10 @@ done
 if [[ $EUID -ne 0 ]]; then echo "Run this script with sudo or as root."; exit 1; fi
 if [[ -z "$DOMAIN" ]]; then echo "--domain is required, for example: --domain hut.example.org"; exit 1; fi
 if [[ ! "$DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]]; then echo "Invalid domain name."; exit 1; fi
+# Re-running the installer must never desynchronise the existing .env and MariaDB password.
+if [[ -z "$DB_PASS" && -f "$APP_DIR/.env" ]]; then
+  DB_PASS="$(sed -n 's/^DB_PASSWORD=//p' "$APP_DIR/.env" | head -n1)"
+fi
 if [[ -z "$DB_PASS" ]]; then DB_PASS="$(openssl rand -base64 28 | tr -dc 'A-Za-z0-9' | head -c 24)"; fi
 if ! [[ "$DB_PASS" =~ ^[A-Za-z0-9]{12,128}$ ]]; then echo "Database password must be 12–128 letters and numbers only."; exit 1; fi
 if [[ -z "$APP_URL" ]]; then APP_URL="http://${DOMAIN}"; fi
@@ -63,8 +68,9 @@ if [[ ! -f .env ]]; then
   cat > .env <<ENV
 APP_ENV=production
 APP_URL=${APP_URL}
+APP_DOMAIN=${DOMAIN}
 APP_KEY=${APP_KEY}
-APP_NAME="1st Sedbury & Tidenham Hut Management"
+APP_NAME="1st Sedbury & Tidenham Scouts"
 APP_TIMEZONE=Europe/London
 
 DB_HOST=127.0.0.1
@@ -148,7 +154,9 @@ chmod 644 /etc/cron.d/scout-hut-mgmt
 
 if [[ "$WITH_CERTBOT" -eq 1 ]]; then
   apt-get install -y certbot python3-certbot-nginx
-  certbot --nginx -d "$DOMAIN"
+  if ! certbot --nginx -d "$DOMAIN"; then
+    echo "Certificate request did not complete. The application is installed; check DNS/origin reachability before retrying Certbot."
+  fi
 fi
 
 echo
@@ -156,4 +164,4 @@ echo "Installation complete."
 echo "Open: ${APP_URL}"
 echo "The first person to visit the site must use 'Set up the first Admin account'."
 echo "Database credentials are saved in: ${APP_DIR}/.env"
-echo "Before real use: configure SMTP under Admin > System settings and add the approved Scouts Wales Group logo."
+echo "Before real use: configure SMTP under Admin > System settings and add the approved red Group logo. When using Cloudflare Tunnel, do not pass --with-certbot."

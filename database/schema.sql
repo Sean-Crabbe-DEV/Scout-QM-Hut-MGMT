@@ -55,7 +55,6 @@ CREATE TABLE IF NOT EXISTS hut_areas (
     name VARCHAR(150) NOT NULL,
     area_type VARCHAR(80) NOT NULL DEFAULT 'Area',
     description TEXT NULL,
-    current_condition ENUM('Excellent','Good','Fair','Needs attention','Unsafe') NOT NULL DEFAULT 'Good',
     booking_enabled TINYINT(1) NOT NULL DEFAULT 0,
     capacity INT UNSIGNED NULL,
     photo_path VARCHAR(255) NULL,
@@ -187,6 +186,7 @@ CREATE TABLE IF NOT EXISTS hut_bookings (
     organisation_name VARCHAR(180) NULL,
     title VARCHAR(180) NOT NULL,
     hut_area_id INT UNSIGNED NULL,
+    whole_site TINYINT(1) NOT NULL DEFAULT 0,
     booking_type VARCHAR(100) NOT NULL DEFAULT 'Hut booking',
     attendee_count INT UNSIGNED NULL,
     starts_at DATETIME NOT NULL,
@@ -197,6 +197,14 @@ CREATE TABLE IF NOT EXISTS hut_bookings (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_hut_booking_requester FOREIGN KEY (requester_user_id) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT fk_hut_booking_area FOREIGN KEY (hut_area_id) REFERENCES hut_areas(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS hut_booking_areas (
+    hut_booking_id INT UNSIGNED NOT NULL,
+    hut_area_id INT UNSIGNED NOT NULL,
+    PRIMARY KEY (hut_booking_id, hut_area_id),
+    CONSTRAINT fk_hut_booking_areas_booking FOREIGN KEY (hut_booking_id) REFERENCES hut_bookings(id) ON DELETE CASCADE,
+    CONSTRAINT fk_hut_booking_areas_area FOREIGN KEY (hut_area_id) REFERENCES hut_areas(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS equipment_bookings (
@@ -263,4 +271,5 @@ CREATE INDEX idx_tickets_created ON tickets(created_at);
 CREATE INDEX idx_equipment_condition ON equipment(current_condition, current_status);
 CREATE INDEX idx_maintenance_links ON maintenance_records(ticket_id, hut_area_id, equipment_id);
 CREATE INDEX idx_hut_bookings_dates ON hut_bookings(starts_at, ends_at);
+CREATE INDEX idx_hut_booking_areas_area ON hut_booking_areas(hut_area_id);
 CREATE INDEX idx_equipment_bookings_dates ON equipment_bookings(starts_at, ends_at);

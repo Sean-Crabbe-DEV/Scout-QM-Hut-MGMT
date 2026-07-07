@@ -11,5 +11,5 @@ if [[ ! -d .git ]]; then
 fi
 
 git add .
-git commit -m "feat: initial Scout Hut Management System" || true
+git commit -m "feat: Scout Hut Management System v1.2" || true
 git push -u origin "$BRANCH"
