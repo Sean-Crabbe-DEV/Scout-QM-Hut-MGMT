@@ -15,3 +15,9 @@ v1.8
 - Equipment item pages now show **Who has had this item** and link directly to the relevant booking history.
 - Approving a booking now records the approved quantity for every requested item.
 - Removed the **Booking type** field from Hut booking requests. All new records retain the internal default `Hut booking` value for backward compatibility.
+
+## v1.10
+
+- Changed the Equipment Booking Summary print layout to **A4 portrait**.
+- Tightened table widths, typography and metadata layout so the booking handover checklist remains readable on a portrait page.
+- Preserved the logo, booking information, tick boxes, issue/return notes and signature fields.

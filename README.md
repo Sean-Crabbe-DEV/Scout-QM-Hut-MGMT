@@ -132,3 +132,7 @@ Open an approved equipment booking and use **Book selected equipment out** to re
 
 ## v1.9
 The printable equipment booking summary has been redesigned for handover use. It includes the Group logo, booking details, date printed, a check-off box per item, condition-out details, notes and signature areas.
+
+## v1.10
+
+The printable Equipment Booking Summary is configured for A4 portrait orientation. Open **Print summary** from an equipment booking and choose **Save as PDF** in the browser print window.
