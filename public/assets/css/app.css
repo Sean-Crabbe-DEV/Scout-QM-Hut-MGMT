@@ -250,3 +250,17 @@ tbody tr:hover{background:#fbfbfc}
   .metric{min-height:126px}
   .metric strong{font-size:2.35rem}
 }
+
+/* v1.5 — clearer equipment workflow and settings-based hut configuration. */
+.equipment-entry{position:relative;display:flex;flex-direction:column;min-width:0}
+.equipment-entry .equipment-card{height:100%}
+.equipment-update-link{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;padding:10px 13px;border:1px solid #e1c9f8;border-radius:11px;background:#fff;color:var(--purple);font-weight:900;text-decoration:none;box-shadow:0 2px 8px rgba(40,22,72,.05)}
+.equipment-update-link:hover{background:var(--purple-soft);border-color:#b887e8;text-decoration:none}
+.form-actions{display:flex;gap:10px;justify-content:flex-end;align-items:center}
+.settings-area-config{margin-top:24px;scroll-margin-top:96px}
+.settings-area-config h3{font-size:1rem;margin:0 0 10px;font-weight:900}
+.compact-list{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.compact-list>a{display:flex;flex-direction:column;gap:2px;padding:12px 13px;border-bottom:1px solid var(--line);color:var(--ink);text-decoration:none}
+.compact-list>a:last-child{border-bottom:0}.compact-list>a:hover{background:#fbf7ff;text-decoration:none}.compact-list span{color:var(--muted);font-size:.84rem}.compact-list b{float:right;color:var(--purple);font-weight:900}
+.badge-booked{background:var(--purple-soft);color:#5a1fa9}.badge-in-repair{background:#ffebd2;color:#7c4200}.badge-disposed-of{background:#e7e7e7;color:#555}
+@media(max-width:760px){.form-actions{justify-content:stretch;flex-direction:column-reverse}.form-actions .button{text-align:center;width:100%}.equipment-update-link{margin-top:7px}}

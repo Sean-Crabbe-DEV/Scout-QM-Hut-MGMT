@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS equipment (
     quantity_owned INT UNSIGNED NOT NULL DEFAULT 1,
     quantity_available INT UNSIGNED NOT NULL DEFAULT 1,
     storage_location VARCHAR(150) NULL,
-    current_status ENUM('Available','Reserved','Checked out','Under maintenance','Unsafe — do not use','Out of service','Lost','Disposed') NOT NULL DEFAULT 'Available',
+    current_status ENUM('Available','Booked','Damaged','In repair','Disposed of') NOT NULL DEFAULT 'Available',
     current_condition ENUM('Excellent','Good','Fair','Needs attention','Damaged','Unsafe — do not use','Out of service','Lost','Disposed') NOT NULL DEFAULT 'Good',
     purchase_date DATE NULL,
     purchase_price DECIMAL(10,2) NULL,
@@ -89,6 +89,17 @@ CREATE TABLE IF NOT EXISTS equipment (
     next_inspection_date DATE NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS equipment_attachments (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    equipment_id INT UNSIGNED NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    storage_name VARCHAR(255) NOT NULL,
+    mime_type VARCHAR(120) NOT NULL,
+    size_bytes INT UNSIGNED NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_equipment_attachment_equipment FOREIGN KEY (equipment_id) REFERENCES equipment(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS tickets (
@@ -269,6 +280,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX idx_tickets_status_priority ON tickets(status, priority);
 CREATE INDEX idx_tickets_created ON tickets(created_at);
 CREATE INDEX idx_equipment_condition ON equipment(current_condition, current_status);
+CREATE INDEX idx_equipment_attachments_equipment ON equipment_attachments(equipment_id);
 CREATE INDEX idx_maintenance_links ON maintenance_records(ticket_id, hut_area_id, equipment_id);
 CREATE INDEX idx_hut_bookings_dates ON hut_bookings(starts_at, ends_at);
 CREATE INDEX idx_hut_booking_areas_area ON hut_booking_areas(hut_area_id);

@@ -106,3 +106,11 @@ The normaliser keeps the vector artwork, removes copied page margins and changes
 ## Operational safety
 
 Keep `/var/www/scout-hut-mgmt/.env`, MariaDB and `storage/uploads/` in encrypted off-site backups. Use HTTPS, strong admin passwords and minimum necessary access. Do not store sensitive youth information unless there is an approved data-protection process for doing so.
+
+### v1.5 workflow update
+
+- **Tickets** are now immediately below Dashboard in the internal navigation.
+- **Hut area configuration** has moved into **System settings**. The Hut page is now operational only; it displays areas, bookings, maintenance and ticket context.
+- Public reports and internal ticket updates support **multiple file uploads** in one action. Equipment records also support multiple documents/photos.
+- Admin, GSL, Chairperson and QM now see an **Update equipment** action on every equipment entry. It can update equipment details, replace the main photo, add supporting files, update the exact equipment status, and record maintenance/costs at the same time.
+- Equipment status values are now: **Available**, **Booked**, **Damaged**, **In repair**, and **Disposed of**. Existing legacy status values are migrated automatically during deployment.

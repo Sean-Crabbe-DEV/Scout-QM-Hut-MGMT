@@ -20,3 +20,12 @@
 - Added the bulk equipment booking builder with selected-item checkboxes, quantities and optional linked hut booking.
 - Restricted External User accounts to hut availability, their own hut booking requests and issue reporting.
 - Added an `deploy-update.sh` helper for updating an existing non-Git installation while retaining `.env`, uploads and backups.
+
+## v1.5
+- Tickets moved directly below Dashboard in the internal navigation.
+- Hut-area add/edit configuration moved into System settings.
+- Ticket reports and ticket updates now accept multiple attachments.
+- Equipment add/update forms accept multiple supporting files.
+- Added role-restricted Equipment Update action for Admin, GSL, Chairperson and QM.
+- Equipment status options simplified to Available, Booked, Damaged, In repair and Disposed of.
+- Equipment updates can record a maintenance entry and costs in the same save action.

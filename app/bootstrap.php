@@ -201,6 +201,16 @@ function can_approve_equipment(): bool
     return is_admin() || user_has_role(['gsl', 'chairperson', 'qm']);
 }
 
+function can_manage_equipment(): bool
+{
+    return is_admin() || user_has_role(['gsl', 'chairperson', 'qm']);
+}
+
+function equipment_status_options(): array
+{
+    return ['Available', 'Booked', 'Damaged', 'In repair', 'Disposed of'];
+}
+
 function can_manage_hut_bookings(): bool
 {
     return is_admin();
@@ -346,6 +356,80 @@ function store_ticket_upload(array $file, int $ticketId, ?int $updateId = null):
         $ticketId, $updateId, mb_substr((string)$file['name'], 0, 255), $stored, $mime, (int)$file['size'],
     ]);
     return (int)db()->lastInsertId();
+}
+
+function normalise_uploaded_files(array $files): array
+{
+    if (!isset($files['name'])) {
+        return [];
+    }
+    if (!is_array($files['name'])) {
+        return [$files];
+    }
+    $normalised = [];
+    foreach ($files['name'] as $index => $name) {
+        $normalised[] = [
+            'name' => $name,
+            'type' => $files['type'][$index] ?? '',
+            'tmp_name' => $files['tmp_name'][$index] ?? '',
+            'error' => $files['error'][$index] ?? UPLOAD_ERR_NO_FILE,
+            'size' => $files['size'][$index] ?? 0,
+        ];
+    }
+    return $normalised;
+}
+
+function store_ticket_uploads(array $files, int $ticketId, ?int $updateId = null): array
+{
+    $attachmentIds = [];
+    foreach (normalise_uploaded_files($files) as $file) {
+        $attachmentId = store_ticket_upload($file, $ticketId, $updateId);
+        if ($attachmentId !== null) {
+            $attachmentIds[] = $attachmentId;
+        }
+    }
+    return $attachmentIds;
+}
+
+function store_equipment_uploads(array $files, int $equipmentId): array
+{
+    $storedIds = [];
+    $allowed = [
+        'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp',
+        'application/pdf' => 'pdf', 'text/plain' => 'txt',
+    ];
+    $max = ((int)env('UPLOAD_MAX_MB', '8')) * 1024 * 1024;
+    if (!is_dir(UPLOAD_PATH) && !mkdir(UPLOAD_PATH, 0750, true) && !is_dir(UPLOAD_PATH)) {
+        throw new RuntimeException('Upload storage is not available.');
+    }
+    foreach (normalise_uploaded_files($files) as $file) {
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            continue;
+        }
+        if (($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+            throw new RuntimeException('One or more files could not be uploaded.');
+        }
+        if (($file['size'] ?? 0) > $max) {
+            throw new RuntimeException('Uploads must be no larger than ' . (int)env('UPLOAD_MAX_MB', '8') . ' MB.');
+        }
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
+        if (!isset($allowed[$mime])) {
+            throw new RuntimeException('Only JPG, PNG, WebP, PDF and TXT files are accepted.');
+        }
+        $storageName = 'equipment_' . bin2hex(random_bytes(20)) . '.' . $allowed[$mime];
+        if (!move_uploaded_file($file['tmp_name'], UPLOAD_PATH . '/' . $storageName)) {
+            throw new RuntimeException('An uploaded equipment file could not be saved.');
+        }
+        q('INSERT INTO equipment_attachments (equipment_id, original_name, storage_name, mime_type, size_bytes) VALUES (?, ?, ?, ?, ?)', [
+            $equipmentId,
+            mb_substr((string)$file['name'], 0, 255),
+            $storageName,
+            $mime,
+            (int)$file['size'],
+        ]);
+        $storedIds[] = (int)db()->lastInsertId();
+    }
+    return $storedIds;
 }
 
 function store_asset_photo(array $file): ?string

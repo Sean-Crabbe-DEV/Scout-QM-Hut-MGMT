@@ -20,6 +20,19 @@ if (column_exists('hut_areas', 'current_condition')) db()->exec('ALTER TABLE hut
 if (!column_exists('hut_bookings', 'whole_site')) db()->exec('ALTER TABLE hut_bookings ADD COLUMN whole_site TINYINT(1) NOT NULL DEFAULT 0 AFTER hut_area_id');
 db()->exec("CREATE TABLE IF NOT EXISTS hut_booking_areas (hut_booking_id INT UNSIGNED NOT NULL, hut_area_id INT UNSIGNED NOT NULL, PRIMARY KEY (hut_booking_id,hut_area_id), CONSTRAINT fk_hut_booking_areas_booking FOREIGN KEY (hut_booking_id) REFERENCES hut_bookings(id) ON DELETE CASCADE, CONSTRAINT fk_hut_booking_areas_area FOREIGN KEY (hut_area_id) REFERENCES hut_areas(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+// Simplify equipment availability statuses for day-to-day use. The temporary enum keeps older installs valid while values are mapped.
+db()->exec("ALTER TABLE equipment MODIFY current_status ENUM('Available','Reserved','Checked out','Under maintenance','Unsafe — do not use','Out of service','Lost','Disposed','Booked','Damaged','In repair','Disposed of') NOT NULL DEFAULT 'Available'");
+db()->exec("UPDATE equipment SET current_status = CASE current_status
+    WHEN 'Reserved' THEN 'Booked'
+    WHEN 'Checked out' THEN 'Booked'
+    WHEN 'Under maintenance' THEN 'In repair'
+    WHEN 'Unsafe — do not use' THEN 'Damaged'
+    WHEN 'Out of service' THEN 'In repair'
+    WHEN 'Lost' THEN 'Disposed of'
+    WHEN 'Disposed' THEN 'Disposed of'
+    ELSE current_status END");
+db()->exec("ALTER TABLE equipment MODIFY current_status ENUM('Available','Booked','Damaged','In repair','Disposed of') NOT NULL DEFAULT 'Available'");
+
 $roles = [
  ['Admin','admin','Full access to the whole system.',['*'],1],
  ['Group Scout Leader','gsl','May approve equipment bookings and manage tickets.',['tickets.manage','tickets.close','equipment.approve'],1],
