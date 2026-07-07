@@ -224,6 +224,8 @@ CREATE TABLE IF NOT EXISTS equipment_bookings (
     requester_user_id INT UNSIGNED NULL,
     requester_name VARCHAR(150) NOT NULL,
     requester_email VARCHAR(190) NOT NULL,
+    holder_name VARCHAR(150) NULL,
+    holder_email VARCHAR(190) NULL,
     title VARCHAR(180) NOT NULL,
     linked_hut_booking_id INT UNSIGNED NULL,
     starts_at DATETIME NOT NULL,
@@ -232,11 +234,17 @@ CREATE TABLE IF NOT EXISTS equipment_bookings (
     approval_note TEXT NULL,
     approved_by_user_id INT UNSIGNED NULL,
     approved_at DATETIME NULL,
+    issued_by_user_id INT UNSIGNED NULL,
+    issued_at DATETIME NULL,
+    returned_by_user_id INT UNSIGNED NULL,
+    returned_at DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_equipment_booking_requester FOREIGN KEY (requester_user_id) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT fk_equipment_booking_hut FOREIGN KEY (linked_hut_booking_id) REFERENCES hut_bookings(id) ON DELETE SET NULL,
-    CONSTRAINT fk_equipment_booking_approver FOREIGN KEY (approved_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+    CONSTRAINT fk_equipment_booking_approver FOREIGN KEY (approved_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_equipment_booking_issuer FOREIGN KEY (issued_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_equipment_booking_returner FOREIGN KEY (returned_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS equipment_booking_items (
@@ -252,6 +260,25 @@ CREATE TABLE IF NOT EXISTS equipment_booking_items (
     notes TEXT NULL,
     CONSTRAINT fk_booking_item_booking FOREIGN KEY (equipment_booking_id) REFERENCES equipment_bookings(id) ON DELETE CASCADE,
     CONSTRAINT fk_booking_item_equipment FOREIGN KEY (equipment_id) REFERENCES equipment(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS equipment_custody_history (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    equipment_booking_id INT UNSIGNED NOT NULL,
+    equipment_booking_item_id INT UNSIGNED NOT NULL,
+    equipment_id INT UNSIGNED NOT NULL,
+    action_type ENUM('Issued','Returned') NOT NULL,
+    quantity INT UNSIGNED NOT NULL,
+    holder_name VARCHAR(150) NULL,
+    holder_email VARCHAR(190) NULL,
+    condition_note VARCHAR(100) NULL,
+    notes TEXT NULL,
+    performed_by_user_id INT UNSIGNED NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_custody_booking FOREIGN KEY (equipment_booking_id) REFERENCES equipment_bookings(id) ON DELETE CASCADE,
+    CONSTRAINT fk_custody_booking_item FOREIGN KEY (equipment_booking_item_id) REFERENCES equipment_booking_items(id) ON DELETE CASCADE,
+    CONSTRAINT fk_custody_equipment FOREIGN KEY (equipment_id) REFERENCES equipment(id) ON DELETE CASCADE,
+    CONSTRAINT fk_custody_user FOREIGN KEY (performed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS email_logs (
@@ -285,3 +312,5 @@ CREATE INDEX idx_maintenance_links ON maintenance_records(ticket_id, hut_area_id
 CREATE INDEX idx_hut_bookings_dates ON hut_bookings(starts_at, ends_at);
 CREATE INDEX idx_hut_booking_areas_area ON hut_booking_areas(hut_area_id);
 CREATE INDEX idx_equipment_bookings_dates ON equipment_bookings(starts_at, ends_at);
+CREATE INDEX idx_equipment_custody_equipment ON equipment_custody_history(equipment_id, created_at);
+CREATE INDEX idx_equipment_custody_booking ON equipment_custody_history(equipment_booking_id, created_at);

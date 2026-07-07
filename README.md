@@ -34,6 +34,13 @@ A self-hosted PHP/MariaDB management system for Scout hut bookings, maintenance 
 - Refreshed the overall interface with softer page backgrounds, larger cards, improved form controls, clearer status surfaces, more readable tables, stronger spacing and mobile-friendly navigation.
 - The fixed header remains in place while content scrolls below it.
 
+
+### v1.6 booking calendar and navigation update
+
+- **Tickets** now appear first inside the **Manage** navigation section.
+- The separate **Hut** entry has been removed from the main navigation. Hut-area configuration remains under **System settings**.
+- **Hut bookings** now has a switch between **List view** and a responsive **Calendar view**. The calendar shows requested, awaiting-approval, approved and confirmed bookings by day; declined and cancelled bookings are not shown.
+
 ## Core permission rules
 
 - **Admins** can manage all users, groups/roles, system settings and all operational records.
@@ -81,8 +88,8 @@ sudo bash update.sh
 This release also includes `deploy-update.sh`, which keeps the existing `.env`, uploaded files and backups. Extract the downloaded v1.4 ZIP, then run:
 
 ```bash
-cd /path/to/scout-hut-mgmt-v1.4
-sudo bash deploy-update.sh /path/to/scout-hut-mgmt-v1.4
+cd /path/to/scout-hut-mgmt-v1.6
+sudo bash deploy-update.sh /path/to/scout-hut-mgmt-v1.6
 ```
 
 Use this instead of re-running `install.sh`.
@@ -114,3 +121,10 @@ Keep `/var/www/scout-hut-mgmt/.env`, MariaDB and `storage/uploads/` in encrypted
 - Public reports and internal ticket updates support **multiple file uploads** in one action. Equipment records also support multiple documents/photos.
 - Admin, GSL, Chairperson and QM now see an **Update equipment** action on every equipment entry. It can update equipment details, replace the main photo, add supporting files, update the exact equipment status, and record maintenance/costs at the same time.
 - Equipment status values are now: **Available**, **Booked**, **Damaged**, **In repair**, and **Disposed of**. Existing legacy status values are migrated automatically during deployment.
+## v1.7 change
+
+The Equipment database list is now view-only. Admin, GSL, Chairperson and QM can update an item from that item’s individual detail page, keeping the main list cleaner.
+
+## v1.8 equipment handover workflow
+
+Open an approved equipment booking and use **Book selected equipment out** to record the person responsible, the quantities leaving, and their condition. Use **Book equipment back in** on return to record returned quantities, condition and any damage/repair status. Use **Export CSV** for a spreadsheet-friendly booking list or **Print summary** to print/save a PDF handover sheet.

@@ -20,7 +20,7 @@ function page_start(string $title, bool $public = false): void
     $logoSvg = is_file(__DIR__ . '/assets/brand/group-logo-red.svg') ? '/assets/brand/group-logo-red.svg' : (is_file(__DIR__ . '/assets/brand/group-logo-red.png') ? '/assets/brand/group-logo-red.png' : null);
     ?><!doctype html>
     <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-    <title><?= e($title) ?> · <?= e($group) ?></title><link rel="stylesheet" href="/assets/css/app.css?v=1.5">
+    <title><?= e($title) ?> · <?= e($group) ?></title><link rel="stylesheet" href="/assets/css/app.css?v=1.8">
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800;6..12,900&display=swap" rel="stylesheet"></head><body>
     <header class="topbar"><div class="brand"><?php if ($logoSvg): ?><img src="<?= e($logoSvg) ?>" alt="<?= e($group) ?>"><?php else: ?><span class="brand-mark">⚜</span><?php endif; ?><div><strong><?= e($group) ?></strong><span>Hut Management</span></div></div>
@@ -37,11 +37,10 @@ function page_start(string $title, bool $public = false): void
         <?php nav_item('/report-problem', '!', 'Report an issue', true); ?>
       <?php else: ?>
         <p class="nav-label">Overview</p>
-        <?php nav_item('/tickets', '!', 'Tickets'); ?>
         <?php nav_item('/dashboard', '⌂', 'Dashboard', true); ?>
         <p class="nav-label nav-label-spaced">Manage</p>
+        <?php nav_item('/tickets', '!', 'Tickets'); ?>
         <?php nav_item('/bookings', '▤', 'Hut bookings'); ?>
-        <?php nav_item('/hut', '⌂', 'Hut'); ?>
         <?php nav_item('/equipment', '▣', 'Equipment'); ?>
         <?php nav_item('/equipment-bookings', '✓', 'Equipment bookings'); ?>
         <?php if (is_admin()): ?><p class="nav-label nav-label-spaced">Administration</p><?php nav_item('/users', '♙', 'Users'); nav_item('/roles', '⚙', 'Groups & roles'); nav_item('/settings', '◌', 'System settings'); ?><?php endif; ?>
@@ -187,6 +186,69 @@ function render_ticket_table(array $tickets, string $type): void
     $heading=$type==='Equipment'?'Equipment':'Hut location'; ?><div class="table-wrap"><table><thead><tr><th>Reference</th><th>Issue</th><th><?=e($heading)?></th><th>Priority</th><th>Status</th><th>Assigned</th><th>Cost</th><th>Updated</th></tr></thead><tbody><?php foreach($tickets as $ticket):?><tr><td><a href="/tickets/<?=$ticket['id']?>"><strong><?=e($ticket['reference'])?></strong></a></td><td><?=e($ticket['title'])?><small><?=e($ticket['category'])?></small></td><td><?=e(ticket_related_label($ticket))?></td><td><?=status_badge($ticket['priority'])?></td><td><?=status_badge($ticket['status'])?></td><td><?=e($ticket['assignees'] ?: 'Unassigned')?></td><td>£<?=number_format((float)$ticket['total_cost'],2)?></td><td><?=e(date('d M Y H:i',strtotime($ticket['updated_at'])))?></td></tr><?php endforeach;?><?php if(!$tickets):?><tr><td colspan="8" class="muted">No <?=e(strtolower($type))?> tickets found.</td></tr><?php endif;?></tbody></table></div><?php
 }
 
+function render_hut_booking_calendar(array $bookings, DateTimeImmutable $month, bool $showTitles): void
+{
+    $monthStart = $month->modify('first day of this month')->setTime(0, 0);
+    $monthEnd = $month->modify('last day of this month')->setTime(0, 0);
+    $gridStart = $monthStart->modify('monday this week');
+    $gridEnd = $monthEnd->modify('sunday this week');
+    $previous = $monthStart->modify('-1 month');
+    $next = $monthStart->modify('+1 month');
+    $today = (new DateTimeImmutable('today'))->format('Y-m-d');
+    ?>
+    <section class="booking-calendar-shell card">
+      <div class="booking-calendar-toolbar">
+        <a class="calendar-nav" href="/bookings?view=calendar&amp;month=<?= e($previous->format('Y-m')) ?>" aria-label="Previous month">← <span>Previous</span></a>
+        <div><p class="eyebrow">Calendar view</p><h2><?= e($monthStart->format('F Y')) ?></h2></div>
+        <a class="calendar-nav" href="/bookings?view=calendar&amp;month=<?= e($next->format('Y-m')) ?>"><span>Next</span> →</a>
+      </div>
+      <div class="booking-calendar-legend" aria-label="Booking status key">
+        <span class="calendar-key confirmed">Confirmed</span>
+        <span class="calendar-key approved">Approved</span>
+        <span class="calendar-key pending">Awaiting approval</span>
+      </div>
+      <div class="booking-calendar" role="grid" aria-label="Hut bookings for <?= e($monthStart->format('F Y')) ?>">
+        <?php foreach (['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] as $dayName): ?><div class="booking-calendar-weekday" role="columnheader"><?= e($dayName) ?></div><?php endforeach; ?>
+        <?php for ($day = $gridStart; $day <= $gridEnd; $day = $day->modify('+1 day')):
+            $dayStart = $day->setTime(0, 0);
+            $dayEnd = $dayStart->modify('+1 day');
+            $isCurrentMonth = $day->format('Y-m') === $monthStart->format('Y-m');
+            $dayBookings = [];
+            foreach ($bookings as $booking) {
+                if (!in_array($booking['status'], ['Requested', 'Awaiting approval', 'Approved', 'Confirmed'], true)) {
+                    continue;
+                }
+                $startsAt = new DateTimeImmutable($booking['starts_at']);
+                $endsAt = new DateTimeImmutable($booking['ends_at']);
+                if ($startsAt < $dayEnd && $endsAt > $dayStart) {
+                    $dayBookings[] = $booking;
+                }
+            }
+            ?>
+            <section class="booking-calendar-day<?= $isCurrentMonth ? '' : ' outside-month' ?><?= $day->format('Y-m-d') === $today ? ' today' : '' ?>" role="gridcell" aria-label="<?= e($day->format('l j F')) ?>">
+              <time datetime="<?= e($day->format('Y-m-d')) ?>"><?= e($day->format('j')) ?></time>
+              <div class="booking-calendar-events">
+                <?php foreach ($dayBookings as $booking):
+                    $statusClass = strtolower(str_replace(' ', '-', (string)$booking['status']));
+                    $startsAt = new DateTimeImmutable($booking['starts_at']);
+                    $endsAt = new DateTimeImmutable($booking['ends_at']);
+                    $time = $startsAt->format('Y-m-d') === $day->format('Y-m-d') ? $startsAt->format('H:i') : 'All day';
+                    $location = $booking['whole_site'] ? 'Whole Site' : ($booking['area_name'] ?: 'Hut booking');
+                    $label = $showTitles ? ($booking['title'] . ' · ' . $location) : $location;
+                    ?>
+                    <div class="calendar-event status-<?= e($statusClass) ?>" title="<?= e($label . ' — ' . $booking['status']) ?>">
+                      <span class="calendar-event-time"><?= e($time) ?></span>
+                      <span><?= e($label) ?></span>
+                    </div>
+                <?php endforeach; ?>
+              </div>
+            </section>
+        <?php endfor; ?>
+      </div>
+    </section>
+    <?php
+}
+
 [$path, $method] = parse_route();
 try {
     if ($path === '/' && $method === 'GET') {
@@ -318,7 +380,7 @@ try {
         $items=all("SELECT e.*,COUNT(DISTINCT t.id) open_tickets,COALESCE(SUM(m.total_cost),0) maintenance_cost FROM equipment e LEFT JOIN tickets t ON t.equipment_id=e.id AND t.status NOT IN ('Resolved','Closed','Cancelled') LEFT JOIN maintenance_records m ON m.equipment_id=e.id GROUP BY e.id ORDER BY e.name");
         $actionLabel=is_admin()?'Add equipment':'Create equipment booking'; $actionHref=is_admin()?'/equipment/new':'/equipment-bookings/new';
         page_start('Equipment');heading('Equipment database','Track status, purchasing, loans, bookings and repair history.',$actionLabel,$actionHref);?>
-        <div class="equipment-grid"><?php foreach($items as $item):?><article class="equipment-entry"><a class="equipment-card" href="/equipment/<?=$item['id']?>"><div class="equipment-photo"><?php if($item['photo_path']&&is_file(UPLOAD_PATH.'/'.$item['photo_path'])):?><img src="/asset-photo/<?=e($item['photo_path'])?>" alt="<?=e($item['name'])?>"><?php else:?><span>Equipment</span><?php endif;?></div><div><p class="asset-id"><?=e($item['asset_id'])?></p><h2><?=e($item['name'])?></h2><?=status_badge($item['current_status'])?><p><?=e($item['storage_location']?:'Location not set')?></p><small>Condition: <?=e($item['current_condition'])?> · Open tickets: <?=$item['open_tickets']?> · Repairs: £<?=number_format((float)$item['maintenance_cost'],2)?></small></div></a><?php if(can_manage_equipment()):?><a class="equipment-update-link" href="/equipment/<?=$item['id']?>/update">Update equipment <span aria-hidden="true">→</span></a><?php endif;?></article><?php endforeach;?><?php if(!$items):?><article class="card"><p>No equipment has been added yet.</p></article><?php endif;?></div><?php page_end();exit;
+        <div class="equipment-grid"><?php foreach($items as $item):?><article class="equipment-entry"><a class="equipment-card" href="/equipment/<?=$item['id']?>"><div class="equipment-photo"><?php if($item['photo_path']&&is_file(UPLOAD_PATH.'/'.$item['photo_path'])):?><img src="/asset-photo/<?=e($item['photo_path'])?>" alt="<?=e($item['name'])?>"><?php else:?><span>Equipment</span><?php endif;?></div><div><p class="asset-id"><?=e($item['asset_id'])?></p><h2><?=e($item['name'])?></h2><?=status_badge($item['current_status'])?><p><?=e($item['storage_location']?:'Location not set')?></p><small>Condition: <?=e($item['current_condition'])?> · Open tickets: <?=$item['open_tickets']?> · Repairs: £<?=number_format((float)$item['maintenance_cost'],2)?></small></div></a></article><?php endforeach;?><?php if(!$items):?><article class="card"><p>No equipment has been added yet.</p></article><?php endif;?></div><?php page_end();exit;
     }
 
     if ($path==='/equipment/new') {
@@ -353,12 +415,12 @@ try {
 
     if (preg_match('#^/equipment/(\d+)$#',$path,$m)&&$method==='GET') {
         $item=one('SELECT * FROM equipment WHERE id=?',[(int)$m[1]]);if(!$item){http_response_code(404);exit('Equipment item not found.');}
-        $tickets=all('SELECT * FROM tickets WHERE equipment_id=? ORDER BY updated_at DESC',[$item['id']]);$maintenance=all('SELECT * FROM maintenance_records WHERE equipment_id=? ORDER BY work_date DESC',[$item['id']]);$history=all('SELECT eb.*,ebi.quantity_requested,ebi.quantity_approved,ebi.quantity_issued,ebi.quantity_returned FROM equipment_booking_items ebi JOIN equipment_bookings eb ON eb.id=ebi.equipment_booking_id WHERE ebi.equipment_id=? ORDER BY eb.starts_at DESC',[$item['id']]);$attachments=all('SELECT * FROM equipment_attachments WHERE equipment_id=? ORDER BY created_at DESC',[$item['id']]);
+        $tickets=all('SELECT * FROM tickets WHERE equipment_id=? ORDER BY updated_at DESC',[$item['id']]);$maintenance=all('SELECT * FROM maintenance_records WHERE equipment_id=? ORDER BY work_date DESC',[$item['id']]);$history=all('SELECT eb.*,ebi.quantity_requested,ebi.quantity_approved,ebi.quantity_issued,ebi.quantity_returned FROM equipment_booking_items ebi JOIN equipment_bookings eb ON eb.id=ebi.equipment_booking_id WHERE ebi.equipment_id=? ORDER BY eb.starts_at DESC',[$item['id']]);$custody=all('SELECT ech.*,eb.reference,eb.title,u.name performed_by_name FROM equipment_custody_history ech JOIN equipment_bookings eb ON eb.id=ech.equipment_booking_id LEFT JOIN users u ON u.id=ech.performed_by_user_id WHERE ech.equipment_id=? ORDER BY ech.created_at DESC',[$item['id']]);$attachments=all('SELECT * FROM equipment_attachments WHERE equipment_id=? ORDER BY created_at DESC',[$item['id']]);
         $actionLabel=can_manage_equipment()?'Update equipment':'Add to equipment booking';$actionHref=can_manage_equipment()?'/equipment/'.$item['id'].'/update':'/equipment-bookings/new?items[]='.$item['id'];
         page_start($item['name']);heading($item['asset_id'].' — '.$item['name'],$item['category'],$actionLabel,$actionHref);?><section class="two-col"><article class="card"><?php if($item['photo_path']&&is_file(UPLOAD_PATH.'/'.$item['photo_path'])):?><img class="detail-photo" src="/asset-photo/<?=e($item['photo_path'])?>" alt="<?=e($item['name'])?>"><?php endif;?><p><?=nl2br(e($item['description']))?></p><div class="detail-grid"><div><span class="label">Status</span><?=status_badge($item['current_status'])?></div><div><span class="label">Condition</span><?=status_badge($item['current_condition'])?></div><div><span class="label">Storage</span><strong><?=e($item['storage_location']?:'Not set')?></strong></div><div><span class="label">Quantity</span><strong><?=e($item['quantity_available'].' of '.$item['quantity_owned'])?></strong></div></div></article><article class="card"><h2>Purchase record</h2><dl class="vertical-dl"><div><dt>Purchase date</dt><dd><?=e($item['purchase_date']?:'Not recorded')?></dd></div><div><dt>Purchase price</dt><dd><?= $item['purchase_price']!==null?'£'.number_format((float)$item['purchase_price'],2):'Not recorded'?></dd></div><div><dt>Place purchased from</dt><dd><?=e($item['purchase_place']?:'Not recorded')?></dd></div><div><dt>Supplier</dt><dd><?=e($item['supplier_contact']?:'Not recorded')?></dd></div><div><dt>Lifetime repair cost</dt><dd>£<?=number_format((float)(one('SELECT COALESCE(SUM(total_cost),0) total FROM maintenance_records WHERE equipment_id=?',[$item['id']])['total']??0),2)?></dd></div></dl></article></section>
         <section class="card"><h2>Add this item to an equipment booking</h2><p>Select this item in a booking basket, add other kit, choose quantities, and submit one request for the whole event.</p><a class="button primary" href="/equipment-bookings/new?items[]=<?=$item['id']?>">Create booking with this item</a><p class="muted">Only GSL, Chairperson, QM or an Admin can approve equipment bookings.</p></section>
         <?php if($attachments):?><section class="card"><h2>Files and photos</h2><div class="attachment-list"><?php foreach($attachments as $attachment):?><a href="/equipment-attachment/<?=$attachment['id']?>">📎 <?=e($attachment['original_name'])?></a><?php endforeach;?></div></section><?php endif;?>
-        <section class="two-col"><article class="card"><h2>Ticket history</h2><ul class="clean-list"><?php foreach($tickets as $ticket):?><li><a href="/tickets/<?=$ticket['id']?>"><?=e($ticket['reference'].' — '.$ticket['title'])?></a> <?=status_badge($ticket['status'])?></li><?php endforeach;?><?php if(!$tickets):?><li class="muted">No tickets linked to this item.</li><?php endif;?></ul></article><article class="card"><h2>Booking and loan history</h2><ul class="clean-list"><?php foreach($history as $booking):?><li><strong><?=e($booking['reference'].' — '.$booking['title'])?></strong><small><?=e(date('d M Y',strtotime($booking['starts_at'])).' · '.$booking['status'])?></small></li><?php endforeach;?><?php if(!$history):?><li class="muted">No bookings yet.</li><?php endif;?></ul></article></section><section class="card"><h2>Maintenance and repair history</h2><div class="table-wrap"><table><thead><tr><th>Date</th><th>Work</th><th>Cost</th><th>Completed</th></tr></thead><tbody><?php foreach($maintenance as $record):?><tr><td><?=e($record['work_date'])?></td><td><?=e($record['description'])?></td><td>£<?=number_format((float)$record['total_cost'],2)?></td><td><?=$record['completed']?'Yes':'No'?></td></tr><?php endforeach;?><?php if(!$maintenance):?><tr><td colspan="4" class="muted">No repairs recorded yet.</td></tr><?php endif;?></tbody></table></div></section><?php page_end();exit;
+        <section class="two-col"><article class="card"><h2>Ticket history</h2><ul class="clean-list"><?php foreach($tickets as $ticket):?><li><a href="/tickets/<?=$ticket['id']?>"><?=e($ticket['reference'].' — '.$ticket['title'])?></a> <?=status_badge($ticket['status'])?></li><?php endforeach;?><?php if(!$tickets):?><li class="muted">No tickets linked to this item.</li><?php endif;?></ul></article><article class="card"><h2>Booking and loan history</h2><ul class="clean-list"><?php foreach($history as $booking):?><li><a href="/equipment-bookings/<?=$booking['id']?>"><strong><?=e($booking['reference'].' — '.$booking['title'])?></strong></a><small><?=e(date('d M Y',strtotime($booking['starts_at'])).' · '.$booking['status'].' · Out: '.($booking['quantity_issued'] ?? 0).' · Returned: '.($booking['quantity_returned'] ?? 0))?></small></li><?php endforeach;?><?php if(!$history):?><li class="muted">No bookings yet.</li><?php endif;?></ul></article></section><section class="card"><h2>Who has had this item</h2><div class="table-wrap"><table><thead><tr><th>When</th><th>Action</th><th>Booking</th><th>Quantity</th><th>Responsible person</th><th>Condition</th><th>Recorded by</th></tr></thead><tbody><?php foreach($custody as $entry):?><tr><td><?=e(date('d M Y H:i',strtotime($entry['created_at'])))?></td><td><?=status_badge($entry['action_type'])?></td><td><a href="/equipment-bookings/<?=$entry['equipment_booking_id']?>"><?=e($entry['reference'].' — '.$entry['title'])?></a></td><td><?=e((string)$entry['quantity'])?></td><td><?=e($entry['holder_name'] ?: '—')?><small><?=e($entry['holder_email'] ?: '')?></small></td><td><?=e($entry['condition_note'] ?: '—')?></td><td><?=e($entry['performed_by_name'] ?: 'System')?></td></tr><?php endforeach;?><?php if(!$custody):?><tr><td colspan="7" class="muted">This item has not been booked out yet.</td></tr><?php endif;?></tbody></table></div></section><section class="card"><h2>Maintenance and repair history</h2><div class="table-wrap"><table><thead><tr><th>Date</th><th>Work</th><th>Cost</th><th>Completed</th></tr></thead><tbody><?php foreach($maintenance as $record):?><tr><td><?=e($record['work_date'])?></td><td><?=e($record['description'])?></td><td>£<?=number_format((float)$record['total_cost'],2)?></td><td><?=$record['completed']?'Yes':'No'?></td></tr><?php endforeach;?><?php if(!$maintenance):?><tr><td colspan="4" class="muted">No repairs recorded yet.</td></tr><?php endif;?></tbody></table></div></section><?php page_end();exit;
     }
 
     if (preg_match('#^/equipment/(\d+)/update$#',$path,$m)) {
@@ -405,7 +467,7 @@ try {
                 $rows[]=['item'=>$item,'quantity'=>$quantity];
             }
             $user=current_user(); $reference=unique_reference('EQP','equipment_bookings'); $linked=(int)($_POST['linked_hut_booking_id']??0)?:null;
-            q('INSERT INTO equipment_bookings(reference,requester_user_id,requester_name,requester_email,title,linked_hut_booking_id,starts_at,ends_at,status) VALUES(?,?,?,?,?,?,?,?,?)',[$reference,$user['id'],$user['name'],$user['email'],$title,$linked,$startSql,$endSql,'Requested']);
+            q('INSERT INTO equipment_bookings(reference,requester_user_id,requester_name,requester_email,holder_name,holder_email,title,linked_hut_booking_id,starts_at,ends_at,status) VALUES(?,?,?,?,?,?,?,?,?,?,?)',[$reference,$user['id'],$user['name'],$user['email'],$user['name'],$user['email'],$title,$linked,$startSql,$endSql,'Requested']);
             $bookingId=(int)db()->lastInsertId();
             foreach($rows as $row) q('INSERT INTO equipment_booking_items(equipment_booking_id,equipment_id,quantity_requested) VALUES(?,?,?)',[$bookingId,$row['item']['id'],$row['quantity']]);
             $summary=implode(', ',array_map(fn($row)=>$row['item']['asset_id'].' — '.$row['item']['name'].' ×'.$row['quantity'],$rows));
@@ -424,12 +486,138 @@ try {
         </form><?php page_end(); exit;
     }
 
+    if (preg_match('#^/equipment-bookings/(\d+)/export\.csv$#', $path, $m) && $method === 'GET') {
+        $booking = one('SELECT * FROM equipment_bookings WHERE id=?', [(int)$m[1]]);
+        if (!$booking) { http_response_code(404); exit('Equipment booking not found.'); }
+        if (!can_approve_equipment() && (int)$booking['requester_user_id'] !== (int)current_user()['id']) { http_response_code(403); exit('You cannot export this booking.'); }
+        $items = all('SELECT ebi.*, e.asset_id, e.name, e.category FROM equipment_booking_items ebi JOIN equipment e ON e.id=ebi.equipment_id WHERE ebi.equipment_booking_id=? ORDER BY e.category,e.name', [$booking['id']]);
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="equipment-booking-'.preg_replace('/[^A-Za-z0-9_-]/','-', $booking['reference']).'.csv"');
+        $out = fopen('php://output', 'w');
+        fputs($out, "\xEF\xBB\xBF");
+        fputcsv($out, ['Equipment booking summary']);
+        fputcsv($out, ['Reference', $booking['reference']]);
+        fputcsv($out, ['Event / title', $booking['title']]);
+        fputcsv($out, ['Requested by', $booking['requester_name']]);
+        fputcsv($out, ['Current holder', $booking['holder_name'] ?: $booking['requester_name']]);
+        fputcsv($out, ['Holder email', $booking['holder_email'] ?: $booking['requester_email']]);
+        fputcsv($out, ['Collection from', date('d M Y H:i', strtotime($booking['starts_at']))]);
+        fputcsv($out, ['Return by', date('d M Y H:i', strtotime($booking['ends_at']))]);
+        fputcsv($out, ['Status', $booking['status']]);
+        fputcsv($out, []);
+        fputcsv($out, ['Asset ID', 'Equipment item', 'Category', 'Requested', 'Approved', 'Issued', 'Returned', 'Condition out', 'Condition in', 'Notes']);
+        foreach ($items as $item) {
+            fputcsv($out, [$item['asset_id'], $item['name'], $item['category'], $item['quantity_requested'], $item['quantity_approved'] ?? '', $item['quantity_issued'] ?? 0, $item['quantity_returned'] ?? 0, $item['condition_out'] ?? '', $item['condition_in'] ?? '', $item['notes'] ?? '']);
+        }
+        fclose($out); exit;
+    }
+
+    if (preg_match('#^/equipment-bookings/(\d+)/print$#', $path, $m) && $method === 'GET') {
+        $booking = one('SELECT * FROM equipment_bookings WHERE id=?', [(int)$m[1]]);
+        if (!$booking) { http_response_code(404); exit('Equipment booking not found.'); }
+        if (!can_approve_equipment() && (int)$booking['requester_user_id'] !== (int)current_user()['id']) { http_response_code(403); exit('You cannot view this booking.'); }
+        $items = all('SELECT ebi.*, e.asset_id, e.name, e.category FROM equipment_booking_items ebi JOIN equipment e ON e.id=ebi.equipment_id WHERE ebi.equipment_booking_id=? ORDER BY e.category,e.name', [$booking['id']]);
+        page_start('Print equipment booking'); heading('Equipment booking list', $booking['reference'].' · print or save as PDF.'); ?>
+        <div class="card print-summary"><div class="detail-grid"><div><span class="label">Reference</span><strong><?=e($booking['reference'])?></strong></div><div><span class="label">Event</span><strong><?=e($booking['title'])?></strong></div><div><span class="label">Status</span><?=status_badge($booking['status'])?></div><div><span class="label">Issued to</span><strong><?=e($booking['holder_name'] ?: $booking['requester_name'])?></strong><small><?=e($booking['holder_email'] ?: $booking['requester_email'])?></small></div><div><span class="label">Collection from</span><strong><?=e(date('d M Y H:i', strtotime($booking['starts_at'])))?></strong></div><div><span class="label">Return by</span><strong><?=e(date('d M Y H:i', strtotime($booking['ends_at'])))?></strong></div></div>
+        <div class="table-wrap"><table><thead><tr><th>Asset ID</th><th>Equipment item</th><th>Requested</th><th>Issued</th><th>Returned</th><th>Condition out</th><th>Condition in</th></tr></thead><tbody><?php foreach($items as $item):?><tr><td><?=e($item['asset_id'])?></td><td><?=e($item['name'])?></td><td><?=e((string)$item['quantity_requested'])?></td><td><?=e((string)($item['quantity_issued'] ?? 0))?></td><td><?=e((string)($item['quantity_returned'] ?? 0))?></td><td><?=e($item['condition_out'] ?: '—')?></td><td><?=e($item['condition_in'] ?: '—')?></td></tr><?php endforeach;?></tbody></table></div></div><div class="form-actions"><a class="button secondary" href="/equipment-bookings/<?=$booking['id']?>">Back to booking</a><button class="button primary" onclick="window.print()">Print / Save as PDF</button></div><?php page_end(); exit;
+    }
+
+    if (preg_match('#^/equipment-bookings/(\d+)/issue$#', $path, $m) && $method === 'POST') {
+        validate_csrf(); if (!can_approve_equipment()) { http_response_code(403); exit('Only GSL, Chairperson, QM and Admins can book equipment out.'); }
+        $booking = one('SELECT * FROM equipment_bookings WHERE id=?', [(int)$m[1]]); if (!$booking) { http_response_code(404); exit('Equipment booking not found.'); }
+        if (!in_array($booking['status'], ['Approved','Partially approved','Ready for collection','Checked out'], true)) throw new RuntimeException('This booking must be approved before equipment can be booked out.');
+        $holderName = trim((string)($_POST['holder_name'] ?? '')); $holderEmail = trim((string)($_POST['holder_email'] ?? ''));
+        if ($holderName === '') throw new RuntimeException('Enter the name of the person taking responsibility for the equipment.');
+        if ($holderEmail !== '' && !filter_var($holderEmail, FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Enter a valid holder email address or leave it blank.');
+        $items = all('SELECT ebi.*, e.name, e.asset_id, e.quantity_available, e.quantity_owned, e.current_status, e.current_condition FROM equipment_booking_items ebi JOIN equipment e ON e.id=ebi.equipment_id WHERE ebi.equipment_booking_id=?', [$booking['id']]);
+        $issuedAny = 0; db()->beginTransaction();
+        try {
+            foreach ($items as $item) {
+                $remaining = max(0, (int)($item['quantity_approved'] ?? $item['quantity_requested']) - (int)($item['quantity_issued'] ?? 0));
+                $quantity = max(0, (int)($_POST['issued_qty'][$item['id']] ?? 0));
+                if ($quantity === 0) continue;
+                if ($quantity > $remaining) throw new RuntimeException($item['name'].' exceeds the approved quantity.');
+                if (in_array($item['current_status'], ['Damaged','In repair','Disposed of'], true)) throw new RuntimeException($item['name'].' cannot be issued while its status is '.$item['current_status'].'.');
+                if ($quantity > (int)$item['quantity_available']) throw new RuntimeException($item['name'].' only has '.$item['quantity_available'].' available to issue.');
+                $condition = trim((string)($_POST['condition_out'][$item['id']] ?? 'Good')) ?: 'Good';
+                q('UPDATE equipment_booking_items SET quantity_issued=COALESCE(quantity_issued,0)+?, condition_out=? WHERE id=?', [$quantity, $condition, $item['id']]);
+                q("UPDATE equipment SET quantity_available=quantity_available-?, current_status=CASE WHEN quantity_available-? <= 0 THEN 'Booked' ELSE 'Available' END WHERE id=?", [$quantity, $quantity, $item['equipment_id']]);
+                q('INSERT INTO equipment_custody_history(equipment_booking_id,equipment_booking_item_id,equipment_id,action_type,quantity,holder_name,holder_email,condition_note,notes,performed_by_user_id) VALUES(?,?,?,?,?,?,?,?,?,?)', [$booking['id'],$item['id'],$item['equipment_id'],'Issued',$quantity,$holderName,$holderEmail ?: null,$condition,trim((string)($_POST['issue_notes'] ?? '')) ?: null,current_user()['id']]);
+                $issuedAny += $quantity;
+            }
+            if ($issuedAny === 0) throw new RuntimeException('Enter a quantity to book out for at least one item.');
+            q('UPDATE equipment_bookings SET holder_name=?,holder_email=?,status=?,issued_by_user_id=?,issued_at=COALESCE(issued_at,NOW()) WHERE id=?', [$holderName,$holderEmail ?: null,'Checked out',current_user()['id'],$booking['id']]);
+            db()->commit();
+        } catch (Throwable $exception) { if (db()->inTransaction()) db()->rollBack(); throw $exception; }
+        audit('Equipment booked out','equipment_booking',$booking['id'],['holder'=>$holderName,'quantity'=>$issuedAny]);
+        send_email($booking['requester_email'],'Equipment booked out: '.$booking['reference'],email_html('Equipment booked out','<p>The equipment for <strong>'.e($booking['title']).'</strong> has been booked out to '.e($holderName).'.</p>','View booking',app_url('/equipment-bookings/'.$booking['id'])),'equipment_booking',$booking['id']);
+        flash('success','Equipment has been booked out and the custody history was recorded.'); redirect('/equipment-bookings/'.$booking['id']);
+    }
+
+    if (preg_match('#^/equipment-bookings/(\d+)/return$#', $path, $m) && $method === 'POST') {
+        validate_csrf(); if (!can_approve_equipment()) { http_response_code(403); exit('Only GSL, Chairperson, QM and Admins can book equipment back in.'); }
+        $booking = one('SELECT * FROM equipment_bookings WHERE id=?', [(int)$m[1]]); if (!$booking) { http_response_code(404); exit('Equipment booking not found.'); }
+        $items = all('SELECT ebi.*, e.name, e.asset_id, e.quantity_available, e.quantity_owned, e.current_status FROM equipment_booking_items ebi JOIN equipment e ON e.id=ebi.equipment_id WHERE ebi.equipment_booking_id=?', [$booking['id']]);
+        $returnedAny = 0; db()->beginTransaction();
+        try {
+            foreach ($items as $item) {
+                $outstanding = max(0, (int)($item['quantity_issued'] ?? 0) - (int)($item['quantity_returned'] ?? 0));
+                $quantity = max(0, (int)($_POST['return_qty'][$item['id']] ?? 0));
+                if ($quantity === 0) continue;
+                if ($quantity > $outstanding) throw new RuntimeException($item['name'].' exceeds the quantity currently out.');
+                $condition = (string)($_POST['condition_in'][$item['id']] ?? 'Good');
+                $status = (string)($_POST['return_status'][$item['id']] ?? 'Available');
+                if (!in_array($status, equipment_status_options(), true)) $status = 'Available';
+                if ($condition === 'Damaged') $status = 'Damaged';
+                $availableAfter = min((int)$item['quantity_owned'], (int)$item['quantity_available'] + ($status === 'Available' ? $quantity : 0));
+                q('UPDATE equipment_booking_items SET quantity_returned=COALESCE(quantity_returned,0)+?, condition_in=?, notes=CONCAT_WS("\n", NULLIF(notes,""), ?) WHERE id=?', [$quantity,$condition,trim((string)($_POST['return_notes'][$item['id']] ?? '')) ?: null,$item['id']]);
+                q('UPDATE equipment SET quantity_available=?, current_status=?, current_condition=? WHERE id=?', [$availableAfter,$status,$condition,$item['equipment_id']]);
+                q('INSERT INTO equipment_custody_history(equipment_booking_id,equipment_booking_item_id,equipment_id,action_type,quantity,holder_name,holder_email,condition_note,notes,performed_by_user_id) VALUES(?,?,?,?,?,?,?,?,?,?)', [$booking['id'],$item['id'],$item['equipment_id'],'Returned',$quantity,$booking['holder_name'] ?: $booking['requester_name'],$booking['holder_email'] ?: $booking['requester_email'],$condition,trim((string)($_POST['return_notes'][$item['id']] ?? '')) ?: null,current_user()['id']]);
+                $returnedAny += $quantity;
+            }
+            if ($returnedAny === 0) throw new RuntimeException('Enter a quantity to book back in for at least one item.');
+            $remaining = (int)(one('SELECT COALESCE(SUM(COALESCE(quantity_issued,0)-COALESCE(quantity_returned,0)),0) AS total FROM equipment_booking_items WHERE equipment_booking_id=?', [$booking['id']])['total'] ?? 0);
+            q('UPDATE equipment_bookings SET status=?,returned_by_user_id=?,returned_at=NOW() WHERE id=?', [$remaining === 0 ? 'Returned' : 'Partially returned',current_user()['id'],$booking['id']]);
+            db()->commit();
+        } catch (Throwable $exception) { if (db()->inTransaction()) db()->rollBack(); throw $exception; }
+        audit('Equipment booked back in','equipment_booking',$booking['id'],['quantity'=>$returnedAny]);
+        flash('success','Equipment return recorded.'); redirect('/equipment-bookings/'.$booking['id']);
+    }
+
+    if (preg_match('#^/equipment-bookings/(\d+)$#', $path, $m) && $method === 'GET') {
+        $booking = one('SELECT eb.*, u.name approved_by_name FROM equipment_bookings eb LEFT JOIN users u ON u.id=eb.approved_by_user_id WHERE eb.id=?', [(int)$m[1]]);
+        if (!$booking) { http_response_code(404); exit('Equipment booking not found.'); }
+        if (!can_approve_equipment() && (int)$booking['requester_user_id'] !== (int)current_user()['id']) { http_response_code(403); exit('You can only view your own equipment bookings.'); }
+        $items = all('SELECT ebi.*,e.asset_id,e.name,e.category,e.quantity_available,e.current_status FROM equipment_booking_items ebi JOIN equipment e ON e.id=ebi.equipment_id WHERE ebi.equipment_booking_id=? ORDER BY e.category,e.name', [$booking['id']]);
+        $history = all('SELECT ech.*,u.name performed_by_name,e.name equipment_name,e.asset_id FROM equipment_custody_history ech JOIN equipment e ON e.id=ech.equipment_id LEFT JOIN users u ON u.id=ech.performed_by_user_id WHERE ech.equipment_booking_id=? ORDER BY ech.created_at DESC', [$booking['id']]);
+        page_start('Equipment booking '.$booking['reference']); heading($booking['reference'].' — '.$booking['title'], 'Issue, return and export the equipment list.'); ?>
+        <div class="page-actions"><a class="button secondary" href="/equipment-bookings/<?=$booking['id']?>/export.csv">Export CSV</a><a class="button secondary" href="/equipment-bookings/<?=$booking['id']?>/print" target="_blank">Print summary</a></div>
+        <section class="card detail-grid"><div><span class="label">Status</span><?=status_badge($booking['status'])?></div><div><span class="label">Requested by</span><strong><?=e($booking['requester_name'])?></strong><small><?=e($booking['requester_email'])?></small></div><div><span class="label">Issued to / responsible person</span><strong><?=e($booking['holder_name'] ?: $booking['requester_name'])?></strong><small><?=e($booking['holder_email'] ?: $booking['requester_email'])?></small></div><div><span class="label">Collection from</span><strong><?=e(date('d M Y H:i',strtotime($booking['starts_at'])))?></strong></div><div><span class="label">Return by</span><strong><?=e(date('d M Y H:i',strtotime($booking['ends_at'])))?></strong></div><div><span class="label">Approved by</span><strong><?=e($booking['approved_by_name'] ?: 'Not yet approved')?></strong></div></section>
+        <section class="card"><h2>Equipment list</h2><div class="table-wrap"><table><thead><tr><th>Asset ID</th><th>Item</th><th>Requested</th><th>Approved</th><th>Out</th><th>Returned</th><th>Outstanding</th><th>Condition</th></tr></thead><tbody><?php foreach($items as $item): $approved=(int)($item['quantity_approved'] ?? $item['quantity_requested']);$issued=(int)($item['quantity_issued'] ?? 0);$returned=(int)($item['quantity_returned'] ?? 0);?><tr><td><?=e($item['asset_id'])?></td><td><a href="/equipment/<?=$item['equipment_id']?>"><?=e($item['name'])?></a></td><td><?=$item['quantity_requested']?></td><td><?=$approved?></td><td><?=$issued?></td><td><?=$returned?></td><td><?=max(0,$issued-$returned)?></td><td><?=e($item['condition_in'] ?: $item['condition_out'] ?: '—')?></td></tr><?php endforeach;?></tbody></table></div></section>
+        <?php if(can_approve_equipment() && in_array($booking['status'],['Requested','Awaiting approval'],true)): ?><section class="card action-card"><h2>Review booking</h2><p>Approve the requested quantities or decline this booking.</p><form method="post" action="/equipment-bookings/<?=$booking['id']?>/approve" class="inline"><?=csrf_field()?><input type="hidden" name="decision" value="Approved"><button class="button primary">Approve booking</button></form> <form method="post" action="/equipment-bookings/<?=$booking['id']?>/approve" class="inline"><?=csrf_field()?><input type="hidden" name="decision" value="Declined"><button class="button danger">Decline booking</button></form></section><?php endif; ?>
+        <?php if(can_approve_equipment() && in_array($booking['status'],['Approved','Partially approved','Ready for collection','Checked out'],true)): $hasIssue=false; foreach($items as $row){if((int)($row['quantity_approved'] ?? $row['quantity_requested'])>(int)($row['quantity_issued'] ?? 0)){$hasIssue=true;break;}} if($hasIssue): ?><form method="post" action="/equipment-bookings/<?=$booking['id']?>/issue" class="card form-grid"><h2 class="full">Book equipment out</h2><div><label>Responsible person <span>*</span></label><input name="holder_name" value="<?=e($booking['holder_name'] ?: $booking['requester_name'])?>" required></div><div><label>Responsible person email</label><input type="email" name="holder_email" value="<?=e($booking['holder_email'] ?: $booking['requester_email'])?>"></div><div class="full"><label>Issue notes</label><textarea name="issue_notes" rows="2" placeholder="Optional collection / handover note"></textarea></div><div class="full"><div class="table-wrap"><table><thead><tr><th>Item</th><th>Approved</th><th>Already out</th><th>Book out now</th><th>Condition out</th></tr></thead><tbody><?php foreach($items as $item):$approved=(int)($item['quantity_approved']??$item['quantity_requested']);$remaining=max(0,$approved-(int)($item['quantity_issued']??0));if(!$remaining)continue;?><tr><td><?=e($item['asset_id'].' — '.$item['name'])?></td><td><?=$approved?></td><td><?=e((string)($item['quantity_issued']??0))?></td><td><input type="number" name="issued_qty[<?=$item['id']?>]" min="0" max="<?=$remaining?>" value="0"></td><td><select name="condition_out[<?=$item['id']?>]"><option>Excellent</option><option selected>Good</option><option>Fair</option><option>Needs attention</option></select></td></tr><?php endforeach;?></tbody></table></div></div><?=csrf_field()?><div class="full"><button class="button primary">Book selected equipment out</button></div></form><?php endif; endif; ?>
+        <?php if(can_approve_equipment()): $hasReturn=false; foreach($items as $row){if((int)($row['quantity_issued']??0)>(int)($row['quantity_returned']??0)){$hasReturn=true;break;}} if($hasReturn): ?><form method="post" action="/equipment-bookings/<?=$booking['id']?>/return" class="card form-grid"><h2 class="full">Book equipment back in</h2><p class="full muted">Record the quantity returned and flag any item that is damaged or needs repair.</p><div class="full"><div class="table-wrap"><table><thead><tr><th>Item</th><th>Currently out</th><th>Return now</th><th>Condition on return</th><th>New status</th><th>Return note</th></tr></thead><tbody><?php foreach($items as $item):$outstanding=max(0,(int)($item['quantity_issued']??0)-(int)($item['quantity_returned']??0));if(!$outstanding)continue;?><tr><td><?=e($item['asset_id'].' — '.$item['name'])?></td><td><?=$outstanding?></td><td><input type="number" name="return_qty[<?=$item['id']?>]" min="0" max="<?=$outstanding?>" value="0"></td><td><select name="condition_in[<?=$item['id']?>]"><option>Excellent</option><option selected>Good</option><option>Fair</option><option>Needs attention</option><option>Damaged</option></select></td><td><select name="return_status[<?=$item['id']?>]"><?php foreach(equipment_status_options() as $status):?><option <?=$status==='Available'?'selected':''?>><?=e($status)?></option><?php endforeach;?></select></td><td><input name="return_notes[<?=$item['id']?>]" placeholder="Optional note"></td></tr><?php endforeach;?></tbody></table></div></div><?=csrf_field()?><div class="full"><button class="button primary">Record return</button></div></form><?php endif; endif; ?>
+        <section class="card"><h2>Handover history</h2><div class="table-wrap"><table><thead><tr><th>When</th><th>Action</th><th>Item</th><th>Quantity</th><th>Responsible person</th><th>Condition</th><th>Recorded by</th></tr></thead><tbody><?php foreach($history as $entry):?><tr><td><?=e(date('d M Y H:i',strtotime($entry['created_at'])))?></td><td><?=status_badge($entry['action_type'])?></td><td><?=e($entry['asset_id'].' — '.$entry['equipment_name'])?></td><td><?=$entry['quantity']?></td><td><?=e($entry['holder_name'] ?: '—')?><small><?=e($entry['holder_email'] ?: '')?></small></td><td><?=e($entry['condition_note'] ?: '—')?></td><td><?=e($entry['performed_by_name'] ?: 'System')?></td></tr><?php endforeach;?><?php if(!$history):?><tr><td colspan="7" class="muted">Nothing has been issued or returned yet.</td></tr><?php endif;?></tbody></table></div></section><?php page_end(); exit;
+    }
+
     if ($path==='/equipment-bookings' && $method==='GET') {
-        $filter=can_approve_equipment()?'':'WHERE eb.requester_user_id=?';$params=can_approve_equipment()?[]:[current_user()['id']];$bookings=all("SELECT eb.*,GROUP_CONCAT(CONCAT(e.asset_id,' — ',e.name,' ×',ebi.quantity_requested) SEPARATOR '; ') items FROM equipment_bookings eb JOIN equipment_booking_items ebi ON ebi.equipment_booking_id=eb.id JOIN equipment e ON e.id=ebi.equipment_id {$filter} GROUP BY eb.id ORDER BY eb.created_at DESC",$params);page_start('Equipment bookings');heading('Equipment bookings','Requests, approvals, issue and return records.','Create equipment booking','/equipment-bookings/new');?><div class="table-wrap"><table><thead><tr><th>Reference</th><th>Requester</th><th>Items</th><th>Dates</th><th>Status</th><th>Action</th></tr></thead><tbody><?php foreach($bookings as $booking):?><tr><td><?=e($booking['reference'])?></td><td><?=e($booking['requester_name'])?></td><td><?=e($booking['items'])?></td><td><?=e(date('d M Y H:i',strtotime($booking['starts_at'])))?><br><?=e(date('d M Y H:i',strtotime($booking['ends_at'])))?></td><td><?=status_badge($booking['status'])?></td><td><?php if(can_approve_equipment() && in_array($booking['status'],['Requested','Awaiting approval'],true)):?><form method="post" action="/equipment-bookings/<?=$booking['id']?>/approve" class="inline"><?=csrf_field()?><input type="hidden" name="decision" value="Approved"><button class="button small primary">Approve</button></form><form method="post" action="/equipment-bookings/<?=$booking['id']?>/approve" class="inline"><?=csrf_field()?><input type="hidden" name="decision" value="Declined"><button class="button small danger">Decline</button></form><?php else:?>—<?php endif;?></td></tr><?php endforeach;?><?php if(!$bookings):?><tr><td colspan="6" class="muted">No equipment booking requests found.</td></tr><?php endif;?></tbody></table></div><?php page_end();exit;
+        $filter=can_approve_equipment()?'':'WHERE eb.requester_user_id=?';$params=can_approve_equipment()?[]:[current_user()['id']];
+        $bookings=all("SELECT eb.*,GROUP_CONCAT(CONCAT(e.asset_id,' — ',e.name,' ×',ebi.quantity_requested) SEPARATOR '; ') items FROM equipment_bookings eb JOIN equipment_booking_items ebi ON ebi.equipment_booking_id=eb.id JOIN equipment e ON e.id=ebi.equipment_id {$filter} GROUP BY eb.id ORDER BY eb.created_at DESC",$params);
+        page_start('Equipment bookings');heading('Equipment bookings','Requests, approvals, handovers and return history.','Create equipment booking','/equipment-bookings/new');?>
+        <div class="table-wrap"><table><thead><tr><th>Reference</th><th>Requester / holder</th><th>Items</th><th>Dates</th><th>Status</th><th>Action</th></tr></thead><tbody><?php foreach($bookings as $booking):?><tr><td><a href="/equipment-bookings/<?=$booking['id']?>"><?=e($booking['reference'])?></a></td><td><strong><?=e($booking['requester_name'])?></strong><small><?=e($booking['holder_name'] ? 'Held by: '.$booking['holder_name'] : 'Not yet issued')?></small></td><td><?=e($booking['items'])?></td><td><?=e(date('d M Y H:i',strtotime($booking['starts_at'])))?><br><?=e(date('d M Y H:i',strtotime($booking['ends_at'])))?></td><td><?=status_badge($booking['status'])?></td><td><a class="button small secondary" href="/equipment-bookings/<?=$booking['id']?>">View</a><?php if(can_approve_equipment() && in_array($booking['status'],['Requested','Awaiting approval'],true)):?><form method="post" action="/equipment-bookings/<?=$booking['id']?>/approve" class="inline"><?=csrf_field()?><input type="hidden" name="decision" value="Approved"><button class="button small primary">Approve</button></form><form method="post" action="/equipment-bookings/<?=$booking['id']?>/approve" class="inline"><?=csrf_field()?><input type="hidden" name="decision" value="Declined"><button class="button small danger">Decline</button></form><?php endif;?></td></tr><?php endforeach;?><?php if(!$bookings):?><tr><td colspan="6" class="muted">No equipment booking requests found.</td></tr><?php endif;?></tbody></table></div><?php page_end();exit;
     }
 
     if (preg_match('#^/equipment-bookings/(\d+)/approve$#',$path,$m)&&$method==='POST') {
-        validate_csrf();if(!can_approve_equipment()){http_response_code(403);exit('Only GSL, Chairperson, QM and Admins can approve equipment bookings.');}$booking=one('SELECT * FROM equipment_bookings WHERE id=?',[(int)$m[1]]);if(!$booking){http_response_code(404);exit('Booking not found.');}$decision=($_POST['decision']??'')==='Declined'?'Declined':'Approved';q('UPDATE equipment_bookings SET status=?,approved_by_user_id=?,approved_at=NOW() WHERE id=?',[$decision,current_user()['id'],$booking['id']]);audit('Equipment booking '.$decision,'equipment_booking',$booking['id']);send_email($booking['requester_email'],'Equipment booking '.$decision.': '.$booking['reference'],email_html('Equipment booking '.$decision,'<p>Your request <strong>'.e($booking['reference']).'</strong> has been '.strtolower($decision).'.</p>','View bookings',app_url('/equipment-bookings')),'equipment_booking',$booking['id']);flash('success','Equipment booking '.$decision.'.');redirect('/equipment-bookings');
+        validate_csrf();if(!can_approve_equipment()){http_response_code(403);exit('Only GSL, Chairperson, QM and Admins can approve equipment bookings.');}
+        $booking=one('SELECT * FROM equipment_bookings WHERE id=?',[(int)$m[1]]);if(!$booking){http_response_code(404);exit('Booking not found.');}
+        $decision=($_POST['decision']??'')==='Declined'?'Declined':'Approved';
+        db()->beginTransaction();
+        try {
+            q('UPDATE equipment_bookings SET status=?,approved_by_user_id=?,approved_at=NOW() WHERE id=?',[$decision,current_user()['id'],$booking['id']]);
+            if ($decision === 'Approved') q('UPDATE equipment_booking_items SET quantity_approved=quantity_requested WHERE equipment_booking_id=?',[$booking['id']]);
+            db()->commit();
+        } catch (Throwable $exception) { if (db()->inTransaction()) db()->rollBack(); throw $exception; }
+        audit('Equipment booking '.$decision,'equipment_booking',$booking['id']);send_email($booking['requester_email'],'Equipment booking '.$decision.': '.$booking['reference'],email_html('Equipment booking '.$decision,'<p>Your request <strong>'.e($booking['reference']).'</strong> has been '.strtolower($decision).'.</p>','View booking',app_url('/equipment-bookings/'.$booking['id'])),'equipment_booking',$booking['id']);flash('success','Equipment booking '.$decision.'.');redirect('/equipment-bookings/'.$booking['id']);
     }
 
     if ($path==='/availability' && $method==='GET') {
@@ -439,7 +627,34 @@ try {
     }
 
     if ($path==='/bookings' && $method==='GET') {
-        $where=is_admin()?'':'WHERE b.requester_user_id=?';$params=is_admin()?[]:[current_user()['id']];$bookings=all("SELECT b.*,h.name area_name,GROUP_CONCAT(DISTINCT ha.name ORDER BY ha.name SEPARATOR ', ') included_areas FROM hut_bookings b LEFT JOIN hut_areas h ON h.id=b.hut_area_id LEFT JOIN hut_booking_areas hba ON hba.hut_booking_id=b.id LEFT JOIN hut_areas ha ON ha.id=hba.hut_area_id {$where} GROUP BY b.id ORDER BY b.starts_at DESC",$params);page_start('Hut bookings');heading('Hut bookings','Requests and confirmed use of hut spaces.','Request booking','/bookings/new');?><div class="table-wrap"><table><thead><tr><th>Reference</th><th>Booking</th><th>Area</th><th>Dates</th><th>Status</th><?php if(can_manage_hut_bookings()):?><th>Action</th><?php endif;?></tr></thead><tbody><?php foreach($bookings as $booking):?><tr><td><?=e($booking['reference'])?></td><td><strong><?=e($booking['title'])?></strong><small><?=e($booking['requester_name'])?></small></td><td><?php if($booking['whole_site']):?><strong>Whole Site</strong><small><?=e($booking['included_areas'] ?: 'All enabled areas')?></small><?php else:?><?=e($booking['area_name']?:'Not set')?><?php endif;?></td><td><?=e(date('d M Y H:i',strtotime($booking['starts_at'])))?><br><?=e(date('d M Y H:i',strtotime($booking['ends_at'])))?></td><td><?=status_badge($booking['status'])?></td><?php if(can_manage_hut_bookings()):?><td><?php if(in_array($booking['status'],['Requested','Awaiting approval'],true)):?><form method="post" action="/bookings/<?=$booking['id']?>/status" class="inline"><?=csrf_field()?><input type="hidden" name="status" value="Approved"><button class="button small primary">Approve</button></form><form method="post" action="/bookings/<?=$booking['id']?>/status" class="inline"><?=csrf_field()?><input type="hidden" name="status" value="Declined"><button class="button small danger">Decline</button></form><?php elseif($booking['status']==='Approved'):?><form method="post" action="/bookings/<?=$booking['id']?>/status" class="inline"><?=csrf_field()?><input type="hidden" name="status" value="Confirmed"><button class="button small secondary">Confirm</button></form><?php else:?>—<?php endif;?></td><?php endif;?></tr><?php endforeach;?><?php if(!$bookings):?><tr><td colspan="<?=can_manage_hut_bookings()?'6':'5'?>" class="muted">No hut booking requests found.</td></tr><?php endif;?></tbody></table></div><?php page_end();exit;
+        $view = (string)($_GET['view'] ?? 'list');
+        if (!in_array($view, ['list', 'calendar'], true)) {
+            $view = 'list';
+        }
+        $monthValue = (string)($_GET['month'] ?? date('Y-m'));
+        if (!preg_match('/^\d{4}-\d{2}$/', $monthValue)) {
+            $monthValue = date('Y-m');
+        }
+        try {
+            $calendarMonth = new DateTimeImmutable($monthValue . '-01');
+        } catch (Throwable) {
+            $calendarMonth = new DateTimeImmutable('first day of this month');
+        }
+        $where=is_admin()?'':'WHERE b.requester_user_id=?';
+        $params=is_admin()?[]:[current_user()['id']];
+        $bookings=all("SELECT b.*,h.name area_name,GROUP_CONCAT(DISTINCT ha.name ORDER BY ha.name SEPARATOR ', ') included_areas FROM hut_bookings b LEFT JOIN hut_areas h ON h.id=b.hut_area_id LEFT JOIN hut_booking_areas hba ON hba.hut_booking_id=b.id LEFT JOIN hut_areas ha ON ha.id=hba.hut_area_id {$where} GROUP BY b.id ORDER BY b.starts_at DESC",$params);
+        page_start('Hut bookings');
+        heading('Hut bookings','Requests, confirmed use of hut spaces and the booking calendar.','Request booking','/bookings/new');?>
+        <nav class="booking-view-switcher" aria-label="Hut booking view">
+          <a class="<?= $view === 'list' ? 'active' : '' ?>" href="/bookings?view=list"><span aria-hidden="true">▤</span><span><strong>List view</strong><small>All booking requests and actions</small></span></a>
+          <a class="<?= $view === 'calendar' ? 'active' : '' ?>" href="/bookings?view=calendar&amp;month=<?= e($calendarMonth->format('Y-m')) ?>"><span aria-hidden="true">▦</span><span><strong>Calendar view</strong><small>See bookings by day</small></span></a>
+        </nav>
+        <?php if ($view === 'calendar'): ?>
+          <?php render_hut_booking_calendar($bookings, $calendarMonth, !is_external_user()); ?>
+        <?php else: ?>
+          <div class="table-wrap"><table><thead><tr><th>Reference</th><th>Booking</th><th>Area</th><th>Dates</th><th>Status</th><?php if(can_manage_hut_bookings()):?><th>Action</th><?php endif;?></tr></thead><tbody><?php foreach($bookings as $booking):?><tr><td><?=e($booking['reference'])?></td><td><strong><?=e($booking['title'])?></strong><small><?=e($booking['requester_name'])?></small></td><td><?php if($booking['whole_site']):?><strong>Whole Site</strong><small><?=e($booking['included_areas'] ?: 'All enabled areas')?></small><?php else:?><?=e($booking['area_name']?:'Not set')?><?php endif;?></td><td><?=e(date('d M Y H:i',strtotime($booking['starts_at'])))?><br><?=e(date('d M Y H:i',strtotime($booking['ends_at'])))?></td><td><?=status_badge($booking['status'])?></td><?php if(can_manage_hut_bookings()):?><td><?php if(in_array($booking['status'],['Requested','Awaiting approval'],true)):?><form method="post" action="/bookings/<?=$booking['id']?>/status" class="inline"><?=csrf_field()?><input type="hidden" name="status" value="Approved"><button class="button small primary">Approve</button></form><form method="post" action="/bookings/<?=$booking['id']?>/status" class="inline"><?=csrf_field()?><input type="hidden" name="status" value="Declined"><button class="button small danger">Decline</button></form><?php elseif($booking['status']==='Approved'):?><form method="post" action="/bookings/<?=$booking['id']?>/status" class="inline"><?=csrf_field()?><input type="hidden" name="status" value="Confirmed"><button class="button small secondary">Confirm</button></form><?php else:?>—<?php endif;?></td><?php endif;?></tr><?php endforeach;?><?php if(!$bookings):?><tr><td colspan="<?=can_manage_hut_bookings()?'6':'5'?>" class="muted">No hut booking requests found.</td></tr><?php endif;?></tbody></table></div>
+        <?php endif; ?>
+        <?php page_end();exit;
     }
 
     if (preg_match('#^/bookings/(\d+)/status$#',$path,$m)&&$method==='POST') {
@@ -447,7 +662,7 @@ try {
     }
 
     if ($path==='/bookings/new') {
-        if($method==='POST'){validate_csrf();$user=current_user();$starts=(string)$_POST['starts_at'];$ends=(string)$_POST['ends_at'];$scope=(string)($_POST['booking_scope']??'area');if(!trim((string)$_POST['title'])||strtotime($starts)>=strtotime($ends))throw new RuntimeException('Enter a title and valid booking times.');$whole=$scope==='whole_site';if($whole&&setting('whole_site_enabled','1')!=='1')throw new RuntimeException('Whole Site bookings are not currently enabled.');$areaId=$whole?null:((int)($_POST['hut_area_id']??0)?:null);if(!$whole&&!$areaId)throw new RuntimeException('Choose a hut area or choose Whole Site.');$included=$whole?all('SELECT id FROM hut_areas WHERE booking_enabled=1 ORDER BY name'):[];if($whole&&!$included)throw new RuntimeException('No bookable hut areas have been configured for Whole Site bookings.');$reference=unique_reference('BKG','hut_bookings');q('INSERT INTO hut_bookings(reference,requester_user_id,requester_name,requester_email,organisation_name,title,hut_area_id,whole_site,booking_type,attendee_count,starts_at,ends_at,status,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[$reference,$user['id'],$user['name'],$user['email'],trim((string)$_POST['organisation_name'])?:null,trim((string)$_POST['title']),$areaId,$whole?1:0,trim((string)$_POST['booking_type'])?:'Hut booking',(int)$_POST['attendee_count']?:null,date('Y-m-d H:i:s',strtotime($starts)),date('Y-m-d H:i:s',strtotime($ends)),'Requested',trim((string)$_POST['notes'])?:null]);$id=(int)db()->lastInsertId();if($whole){foreach($included as $area)q('INSERT INTO hut_booking_areas(hut_booking_id,hut_area_id) VALUES(?,?)',[$id,$area['id']]);}audit('Hut booking requested','hut_booking',$id,['whole_site'=>$whole]);foreach(core_notification_users() as $manager){send_email($manager['email'],'New hut booking request: '.$reference,email_html('New hut booking request','<p>'.e($_POST['title']).' has been requested by '.e($user['name']).'.</p><p>'.($whole?'This request is for the <strong>Whole Site</strong>.':'').'</p>','Open bookings',app_url('/bookings')),'hut_booking',$id);}flash('success','Booking request '.$reference.' submitted.');redirect('/bookings');}page_start('Request hut booking');heading('Request a hut booking');?><form method="post" class="card form-grid booking-form"><?=csrf_field()?><div><label>Booking title <span>*</span></label><input name="title" required></div><div><label>Organisation / section</label><input name="organisation_name"></div><div><label>What do you need to book? <span>*</span></label><select name="booking_scope" data-booking-scope><?php if(setting('whole_site_enabled','1')==='1'):?><option value="whole_site">Whole Site</option><?php endif;?><option value="area" <?=setting('whole_site_enabled','1')==='1'?'selected':''?>>Individual hut area</option></select></div><div data-booking-area><label>Hut area <span>*</span></label><select name="hut_area_id"><option value="">Choose a hut area</option><?php foreach(all('SELECT * FROM hut_areas WHERE booking_enabled=1 ORDER BY name') as $area):?><option value="<?=$area['id']?>"><?=e($area['name'])?></option><?php endforeach;?></select></div><div class="full alert info" data-whole-site-note hidden><strong>Whole Site booking:</strong> when this booking is approved or confirmed, every enabled bookable area is reserved for these times and will show as booked.</div><div><label>Booking type</label><input name="booking_type" value="Hut booking"></div><div><label>Number attending</label><input type="number" min="1" name="attendee_count"></div><div><label>From <span>*</span></label><input type="datetime-local" name="starts_at" required></div><div><label>Until <span>*</span></label><input type="datetime-local" name="ends_at" required></div><div class="full"><label>Notes</label><textarea name="notes" rows="4"></textarea></div><button class="button primary">Submit booking request</button></form><?php page_end();exit;
+        if($method==='POST'){validate_csrf();$user=current_user();$starts=(string)$_POST['starts_at'];$ends=(string)$_POST['ends_at'];$scope=(string)($_POST['booking_scope']??'area');if(!trim((string)$_POST['title'])||strtotime($starts)>=strtotime($ends))throw new RuntimeException('Enter a title and valid booking times.');$whole=$scope==='whole_site';if($whole&&setting('whole_site_enabled','1')!=='1')throw new RuntimeException('Whole Site bookings are not currently enabled.');$areaId=$whole?null:((int)($_POST['hut_area_id']??0)?:null);if(!$whole&&!$areaId)throw new RuntimeException('Choose a hut area or choose Whole Site.');$included=$whole?all('SELECT id FROM hut_areas WHERE booking_enabled=1 ORDER BY name'):[];if($whole&&!$included)throw new RuntimeException('No bookable hut areas have been configured for Whole Site bookings.');$reference=unique_reference('BKG','hut_bookings');q('INSERT INTO hut_bookings(reference,requester_user_id,requester_name,requester_email,organisation_name,title,hut_area_id,whole_site,booking_type,attendee_count,starts_at,ends_at,status,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[$reference,$user['id'],$user['name'],$user['email'],trim((string)$_POST['organisation_name'])?:null,trim((string)$_POST['title']),$areaId,$whole?1:0,'Hut booking',(int)$_POST['attendee_count']?:null,date('Y-m-d H:i:s',strtotime($starts)),date('Y-m-d H:i:s',strtotime($ends)),'Requested',trim((string)$_POST['notes'])?:null]);$id=(int)db()->lastInsertId();if($whole){foreach($included as $area)q('INSERT INTO hut_booking_areas(hut_booking_id,hut_area_id) VALUES(?,?)',[$id,$area['id']]);}audit('Hut booking requested','hut_booking',$id,['whole_site'=>$whole]);foreach(core_notification_users() as $manager){send_email($manager['email'],'New hut booking request: '.$reference,email_html('New hut booking request','<p>'.e($_POST['title']).' has been requested by '.e($user['name']).'.</p><p>'.($whole?'This request is for the <strong>Whole Site</strong>.':'').'</p>','Open bookings',app_url('/bookings')),'hut_booking',$id);}flash('success','Booking request '.$reference.' submitted.');redirect('/bookings');}page_start('Request hut booking');heading('Request a hut booking');?><form method="post" class="card form-grid booking-form"><?=csrf_field()?><div><label>Booking title <span>*</span></label><input name="title" required></div><div><label>Organisation / section</label><input name="organisation_name"></div><div><label>What do you need to book? <span>*</span></label><select name="booking_scope" data-booking-scope><?php if(setting('whole_site_enabled','1')==='1'):?><option value="whole_site">Whole Site</option><?php endif;?><option value="area" <?=setting('whole_site_enabled','1')==='1'?'selected':''?>>Individual hut area</option></select></div><div data-booking-area><label>Hut area <span>*</span></label><select name="hut_area_id"><option value="">Choose a hut area</option><?php foreach(all('SELECT * FROM hut_areas WHERE booking_enabled=1 ORDER BY name') as $area):?><option value="<?=$area['id']?>"><?=e($area['name'])?></option><?php endforeach;?></select></div><div class="full alert info" data-whole-site-note hidden><strong>Whole Site booking:</strong> when this booking is approved or confirmed, every enabled bookable area is reserved for these times and will show as booked.</div><div><label>Number attending</label><input type="number" min="1" name="attendee_count"></div><div><label>From <span>*</span></label><input type="datetime-local" name="starts_at" required></div><div><label>Until <span>*</span></label><input type="datetime-local" name="ends_at" required></div><div class="full"><label>Notes</label><textarea name="notes" rows="4"></textarea></div><button class="button primary">Submit booking request</button></form><?php page_end();exit;
     }
 
     if ($path==='/users') {

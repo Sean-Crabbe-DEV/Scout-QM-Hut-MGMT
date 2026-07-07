@@ -264,3 +264,77 @@ tbody tr:hover{background:#fbfbfc}
 .compact-list>a:last-child{border-bottom:0}.compact-list>a:hover{background:#fbf7ff;text-decoration:none}.compact-list span{color:var(--muted);font-size:.84rem}.compact-list b{float:right;color:var(--purple);font-weight:900}
 .badge-booked{background:var(--purple-soft);color:#5a1fa9}.badge-in-repair{background:#ffebd2;color:#7c4200}.badge-disposed-of{background:#e7e7e7;color:#555}
 @media(max-width:760px){.form-actions{justify-content:stretch;flex-direction:column-reverse}.form-actions .button{text-align:center;width:100%}.equipment-update-link{margin-top:7px}}
+
+/* v1.6 — booking calendar and a cleaner Manage navigation. */
+.booking-view-switcher{
+  display:flex;
+  align-items:stretch;
+  gap:10px;
+  margin:0 0 20px;
+}
+.booking-view-switcher a{
+  display:flex;
+  align-items:center;
+  gap:11px;
+  min-width:0;
+  padding:13px 16px;
+  border:1px solid #e2e4e8;
+  border-radius:13px;
+  background:#fff;
+  color:var(--ink);
+  text-decoration:none;
+  box-shadow:0 2px 8px rgba(21,22,28,.035);
+}
+.booking-view-switcher a:hover{border-color:#f2a497;background:#fff8f6;text-decoration:none}
+.booking-view-switcher a.active{border-color:var(--red);background:var(--red-soft);box-shadow:0 0 0 3px rgba(237,63,35,.11)}
+.booking-view-switcher a>span:first-child{display:grid;place-items:center;width:31px;height:31px;border-radius:9px;background:#f4f5f7;color:var(--navy);font-size:1.05rem;font-weight:900}
+.booking-view-switcher a.active>span:first-child{background:var(--red);color:#fff}
+.booking-view-switcher strong{display:block;font-size:.93rem;line-height:1.15}
+.booking-view-switcher small{display:block;margin-top:2px;color:var(--muted);font-size:.77rem}
+
+.booking-calendar-shell{padding:0;overflow:hidden}
+.booking-calendar-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 24px 14px;border-bottom:1px solid #eceef1;background:linear-gradient(180deg,#fff 0,#fbfbfc 100%)}
+.booking-calendar-toolbar h2{margin:0;font-size:1.35rem;letter-spacing:-.03em;text-align:center}
+.booking-calendar-toolbar .eyebrow{margin:0 0 3px;text-align:center;font-size:.67rem;font-weight:900;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.calendar-nav{display:inline-flex;align-items:center;gap:7px;min-width:100px;padding:9px 11px;border:1px solid #e2e4e8;border-radius:10px;background:#fff;color:var(--navy);font-size:.85rem;font-weight:900;text-decoration:none}
+.calendar-nav:hover{border-color:#b5c5d9;background:#f5f8fb;text-decoration:none}
+.booking-calendar-toolbar .calendar-nav:last-child{justify-content:flex-end}
+.booking-calendar-legend{display:flex;flex-wrap:wrap;gap:9px;padding:13px 24px;border-bottom:1px solid #eceef1;background:#fff}
+.calendar-key{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;font-size:.74rem;font-weight:800}
+.calendar-key:before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}
+.calendar-key.confirmed{color:#205b41;background:#e8f5eb}.calendar-key.approved{color:#5a1fa9;background:var(--purple-soft)}.calendar-key.pending{color:#8c4f00;background:#fff0d9}
+.booking-calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));background:#e8eaed;border-top:0;gap:1px}
+.booking-calendar-weekday{padding:10px 8px;background:#f5f6f8;color:#5c5e65;font-size:.72rem;font-weight:900;letter-spacing:.06em;text-align:center;text-transform:uppercase}
+.booking-calendar-day{display:flex;flex-direction:column;min-height:138px;padding:9px 8px;background:#fff}
+.booking-calendar-day.outside-month{background:#fafafb;color:#9699a1}
+.booking-calendar-day.today{box-shadow:inset 0 0 0 2px var(--red)}
+.booking-calendar-day time{display:flex;align-items:center;justify-content:center;width:26px;height:26px;margin-bottom:6px;border-radius:50%;font-size:.79rem;font-weight:900}
+.booking-calendar-day.today time{background:var(--red);color:#fff}
+.booking-calendar-events{display:flex;flex-direction:column;gap:4px;min-width:0}
+.calendar-event{display:flex;align-items:baseline;gap:4px;min-width:0;padding:4px 5px;border-radius:6px;background:#f1f2f4;color:#3f4148;font-size:.69rem;font-weight:800;line-height:1.2}
+.calendar-event span:last-child{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.calendar-event-time{flex:0 0 auto;font-size:.64rem;font-variant-numeric:tabular-nums;opacity:.76}
+.calendar-event.status-confirmed{background:#e8f5eb;color:#205b41}.calendar-event.status-approved{background:var(--purple-soft);color:#5a1fa9}.calendar-event.status-requested,.calendar-event.status-awaiting-approval{background:#fff0d9;color:#8c4f00}
+
+@media(max-width:920px){
+  .booking-calendar-day{min-height:116px}
+  .calendar-event{font-size:.64rem}
+  .calendar-nav{min-width:auto}
+}
+@media(max-width:680px){
+  .booking-view-switcher{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .booking-view-switcher a{padding:11px 10px;gap:8px}
+  .booking-view-switcher small{display:none}
+  .booking-calendar-toolbar{padding:16px 12px 12px;gap:8px}
+  .calendar-nav{padding:8px;font-size:.78rem}
+  .calendar-nav span{display:none}
+  .booking-calendar-legend{padding:10px 12px}
+  .booking-calendar-weekday{padding:8px 2px;font-size:.61rem}
+  .booking-calendar-day{min-height:91px;padding:6px 4px}
+  .booking-calendar-day time{width:22px;height:22px;margin-bottom:4px;font-size:.7rem}
+  .calendar-event{display:block;padding:3px 4px;font-size:.59rem}
+  .calendar-event-time{display:none}
+}
+
+/* Equipment booking handover and export */
+.page-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin:-10px 0 20px}.action-card{border-left:5px solid var(--purple)}.print-summary{max-width:1100px;margin:0 auto 18px}@media print{.topbar,.sidebar,.footer,.page-actions,.form-actions,.button{display:none!important}.content{margin:0!important;padding:0!important}.card,.table-wrap{box-shadow:none!important;border-color:#bbb!important}.print-summary{max-width:none!important}.content+.footer{margin:0!important}}
