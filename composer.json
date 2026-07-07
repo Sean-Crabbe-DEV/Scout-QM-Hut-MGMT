@@ -1,0 +1,13 @@
+{
+  "name": "sean-crabbe-dev/scout-qm-hut-mgmt",
+  "description": "Scout hut bookings, maintenance, equipment and ticket management.",
+  "type": "project",
+  "require": {
+    "php": ">=8.1",
+    "phpmailer/phpmailer": "^6.9"
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true
+  }
+}
