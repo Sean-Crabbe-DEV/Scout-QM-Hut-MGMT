@@ -77,7 +77,8 @@ final class EquipmentBookingSummaryPdf
     /** @param array<string,mixed> $booking @param list<array<string,mixed>> $items */
     private static function pageStream(array $booking, array $items, string $groupName, int $pageIndex, int $totalPages, bool $isFirst, bool $isFinal): string
     {
-        $out = "q\n";
+        $out = "q
+";
         $top = self::PAGE_H - self::MARGIN;
         $contentX = self::MARGIN;
         $contentW = self::PAGE_W - (self::MARGIN * 2);
@@ -88,149 +89,165 @@ final class EquipmentBookingSummaryPdf
         $border = [0.765, 0.745, 0.729];
         $soft = [0.957, 0.949, 0.945];
 
-        $out .= self::fillRect($contentX, $top - 67, $contentW, 3, $red);
-        $out .= self::image('Im1', $contentX, $top - 45, 112, 31);
-        $out .= self::text($contentX + 122, $top - 16, self::short($groupName, 48), 7.4, 'F2', $red);
-        $out .= self::text($contentX + 122, $top - 36, $isFirst ? 'Equipment Booking Summary' : 'Equipment Booking - continued', $isFirst ? 16.5 : 14.2, 'F2', $ink);
-        $out .= self::text($contentX + 122, $top - 51, 'Kit issue and return checklist', 8.3, 'F1', $muted);
-        $out .= self::rightText($contentX + $contentW, $top - 16, 'BOOKING REFERENCE', 6.8, 'F2', $muted);
-        $out .= self::rightText($contentX + $contentW, $top - 35, self::short((string)($booking['reference'] ?? ''), 28), 10.2, 'F2', $navy);
+        // Compact branded heading. The red rule joins the header and the details block
+        // without leaving the large unused gap present in earlier exports.
+        $out .= self::fillRect($contentX, $top - 4, $contentW, 3, $red);
+        $out .= self::image('Im1', $contentX, $top - 40, 101, 28);
+        $titleX = $contentX + 111;
+        $out .= self::text($titleX, $top - 12, self::short($groupName, 48), 6.9, 'F2', $red);
+        $out .= self::text($titleX, $top - 30, $isFirst ? 'Equipment Booking Summary' : 'Equipment Booking - continued', $isFirst ? 15.1 : 13.4, 'F2', $ink);
+        $out .= self::text($titleX, $top - 44, 'Issue and return checklist', 7.3, 'F1', $muted);
+        $out .= self::rightText($contentX + $contentW, $top - 12, 'BOOKING REFERENCE', 6.2, 'F2', $muted);
+        $out .= self::rightText($contentX + $contentW, $top - 28, self::short((string)($booking['reference'] ?? ''), 28), 9.3, 'F2', $navy);
+        $out .= self::rightText($contentX + $contentW, $top - 43, 'Printed ' . date('d M Y, H:i'), 6.4, 'F1', $muted);
 
-        $tableTop = $top - 92;
+        $tableTop = $top - 74;
         if ($isFirst) {
-            $metaY = $top - 153;
+            $metaY = $top - 135;
             $out .= self::metaGrid($booking, $contentX, $metaY, $contentW, $border, $soft, $ink, $muted);
-            $tableTop = $metaY - 14;
+            $tableTop = $metaY - 13;
             $holder = trim((string)($booking['holder_name'] ?? ''));
             if ($holder !== '') {
-                $holderY = $tableTop - 27;
-                $out .= self::fillStrokeRect($contentX, $holderY, $contentW, 21, [0.976, 0.972, 0.969], $border, 0.7);
-                $out .= self::text($contentX + 7, $holderY + 12.5, 'EQUIPMENT CURRENTLY ISSUED TO', 6.6, 'F2', $muted);
+                $holderY = $tableTop - 26;
+                $out .= self::fillStrokeRect($contentX, $holderY, $contentW, 20, [0.976, 0.972, 0.969], $border, 0.7);
+                $out .= self::text($contentX + 7, $holderY + 11.8, 'EQUIPMENT CURRENTLY ISSUED TO', 6.2, 'F2', $muted);
                 $holderText = $holder;
                 $holderEmail = trim((string)($booking['holder_email'] ?? ''));
                 if ($holderEmail !== '') {
-                    $holderText .= ' - ' . $holderEmail;
+                    $holderText .= '  •  ' . $holderEmail;
                 }
-                $out .= self::text($contentX + 166, $holderY + 11.8, self::short($holderText, 62), 8.4, 'F2', $ink);
-                $tableTop = $holderY - 14;
+                $out .= self::text($contentX + 153, $holderY + 11.4, self::short($holderText, 64), 8.0, 'F2', $ink);
+                $tableTop = $holderY - 13;
             }
         }
 
         $out .= self::tableHeader($contentX, $tableTop, $contentW, $border, $soft, $ink);
-        $rowY = $tableTop - 57;
+        $rowY = $tableTop - 64;
         foreach ($items as $item) {
             $out .= self::tableRow($item, $contentX, $rowY, $contentW, $border, $ink, $muted);
-            $rowY -= 37;
+            $rowY -= 42;
         }
 
         if ($isFinal) {
-            $notesTop = max(142.0, $rowY - 10);
+            // Keep the note blocks close enough to the final item to feel like one
+            // handover form, while leaving enough room for rows on larger bookings.
+            $notesTop = max(138.0, $rowY + 16);
             $out .= self::notesAndSignatures($contentX, $notesTop, $contentW, $border, $ink, $muted);
         }
 
         $pageLabel = 'Page ' . ($pageIndex + 1) . ' of ' . $totalPages;
         $out .= self::line($contentX, 30, $contentX + $contentW, 30, 0.6, $border);
-        $out .= self::text($contentX, 18, 'Please check each item before it leaves and again on return. Report missing, damaged or unsafe equipment through the Hut Management System.', 6.8, 'F1', $muted);
-        $out .= self::rightText($contentX + $contentW, 18, $pageLabel, 6.8, 'F1', $muted);
-        return $out . "Q\n";
+        $out .= self::text($contentX, 18, 'Check each item before it leaves and again on return. Report missing, damaged or unsafe equipment through the Hut Management System.', 6.4, 'F1', $muted);
+        $out .= self::rightText($contentX + $contentW, 18, $pageLabel, 6.5, 'F1', $muted);
+        return $out . "Q
+";
     }
 
     /** @param array<string,mixed> $booking */
     private static function metaGrid(array $booking, float $x, float $y, float $w, array $border, array $soft, array $ink, array $muted): string
     {
-        $h = 55.0;
-        $half = $w / 2;
-        $row = $h / 3;
-        $printed = date('d M Y, H:i');
-        $event = self::short((string)($booking['title'] ?? ''), 45);
-        $status = self::short((string)($booking['status'] ?? ''), 28);
-        $requester = self::short((string)($booking['requester_name'] ?? ''), 42);
+        // A two-row details panel: wide Event field on top, then three balanced
+        // practical fields below. Printed date is intentionally in the header.
+        $h = 58.0;
+        $topRow = 29.0;
+        $eventW = $w * 0.66;
+        $bottomThird = $w / 3;
+        $event = self::short((string)($booking['title'] ?? ''), 52);
+        $status = self::short((string)($booking['status'] ?? ''), 27);
+        $requester = self::short((string)($booking['requester_name'] ?? ''), 25);
         $starts = self::formatDate((string)($booking['starts_at'] ?? ''));
         $ends = self::formatDate((string)($booking['ends_at'] ?? ''));
 
         $out = self::fillStrokeRect($x, $y, $w, $h, [1, 1, 1], $border, 0.7);
-        $out .= self::fillRect($x, $y + $h - $row, $w, $row, $soft);
-        $out .= self::line($x + $half, $y, $x + $half, $y + $h, 0.6, $border);
-        $out .= self::line($x, $y + $row, $x + $w, $y + $row, 0.6, $border);
-        $out .= self::line($x, $y + ($row * 2), $x + $w, $y + ($row * 2), 0.6, $border);
+        $out .= self::fillRect($x, $y + $h - $topRow, $w, $topRow, $soft);
+        $out .= self::line($x, $y + ($h - $topRow), $x + $w, $y + ($h - $topRow), 0.6, $border);
+        $out .= self::line($x + $eventW, $y + ($h - $topRow), $x + $eventW, $y + $h, 0.6, $border);
+        $out .= self::line($x + $bottomThird, $y, $x + $bottomThird, $y + ($h - $topRow), 0.6, $border);
+        $out .= self::line($x + ($bottomThird * 2), $y, $x + ($bottomThird * 2), $y + ($h - $topRow), 0.6, $border);
 
-        $cells = [
-            [$x + 7, $y + $h - 10, 'EVENT', $event],
-            [$x + $half + 7, $y + $h - 10, 'STATUS', $status],
-            [$x + 7, $y + $row + 8, 'BOOKING USER', $requester],
-            [$x + $half + 7, $y + $row + 8, 'DATE PRINTED', $printed],
-            [$x + 7, $y + 8, 'COLLECTION FROM', $starts],
-            [$x + $half + 7, $y + 8, 'RETURN BY', $ends],
-        ];
-        foreach ($cells as [$cx, $cy, $label, $value]) {
-            $out .= self::text($cx, $cy, $label, 6.2, 'F2', $muted);
-            $out .= self::text($cx, $cy - 8.8, self::short($value, 42), 8.2, 'F2', $ink);
+        // Top row.
+        $out .= self::text($x + 8, $y + $h - 10, 'EVENT', 6.0, 'F2', $muted);
+        $out .= self::text($x + 8, $y + $h - 21, $event, 8.4, 'F2', $ink);
+        $out .= self::text($x + $eventW + 8, $y + $h - 10, 'STATUS', 6.0, 'F2', $muted);
+        $out .= self::text($x + $eventW + 8, $y + $h - 21, $status, 8.4, 'F2', $ink);
+
+        // Bottom row.
+        $bottomY = $y + 7;
+        foreach ([
+            [$x + 8, 'BOOKING USER', $requester],
+            [$x + $bottomThird + 8, 'COLLECTION FROM', $starts],
+            [$x + ($bottomThird * 2) + 8, 'RETURN BY', $ends],
+        ] as [$cellX, $label, $value]) {
+            $out .= self::text($cellX, $bottomY + 12, $label, 5.8, 'F2', $muted);
+            $out .= self::text($cellX, $bottomY + 1, self::short((string)$value, 23), 7.2, 'F2', $ink);
         }
         return $out;
     }
 
     private static function tableHeader(float $x, float $y, float $w, array $border, array $soft, array $ink): string
     {
-        $out = self::fillStrokeRect($x, $y - 20, $w, 20, $soft, $border, 0.8);
+        $out = self::fillStrokeRect($x, $y - 22, $w, 22, $soft, $border, 0.8);
         foreach (self::columns($x) as $column) {
             if ($column['x'] !== $x) {
-                $out .= self::line($column['x'], $y - 20, $column['x'], $y, 0.6, $border);
+                $out .= self::line($column['x'], $y - 22, $column['x'], $y, 0.6, $border);
             }
         }
-        $out .= self::centerText($x + 14, $y - 12.5, 'CHECK', 6.4, 'F2', $ink);
-        $out .= self::text($x + 32, $y - 12.5, 'ASSET ID', 6.4, 'F2', $ink);
-        $out .= self::text($x + 112, $y - 12.5, 'EQUIPMENT ITEM', 6.4, 'F2', $ink);
-        $out .= self::centerText($x + 394, $y - 12.5, 'QTY', 6.4, 'F2', $ink);
-        $out .= self::text($x + 420, $y - 12.5, 'STATUS / CONDITION OUT', 6.4, 'F2', $ink);
+        $out .= self::centerText($x + 17, $y - 13.4, 'CHECK', 6.0, 'F2', $ink);
+        $out .= self::text($x + 40, $y - 13.4, 'ASSET ID', 6.2, 'F2', $ink);
+        $out .= self::text($x + 124, $y - 13.4, 'EQUIPMENT ITEM', 6.2, 'F2', $ink);
+        $out .= self::centerText($x + 371, $y - 13.4, 'QTY', 6.2, 'F2', $ink);
+        $out .= self::text($x + 402, $y - 13.4, 'CONDITION OUT', 6.2, 'F2', $ink);
         return $out;
     }
 
     /** @param array<string,mixed> $item */
     private static function tableRow(array $item, float $x, float $y, float $w, array $border, array $ink, array $muted): string
     {
-        $h = 37.0;
+        $h = 42.0;
         $out = self::strokeRect($x, $y, $w, $h, $border, 0.6);
         foreach (self::columns($x) as $column) {
             if ($column['x'] !== $x) {
                 $out .= self::line($column['x'], $y, $column['x'], $y + $h, 0.6, $border);
             }
         }
-        $out .= self::strokeRect($x + 9, $y + 12, 10, 10, $ink, 0.9);
-        $asset = self::short((string)($item['asset_id'] ?? ''), 18);
-        $name = self::short((string)($item['name'] ?? ''), 46);
-        $category = self::short((string)($item['category'] ?? ''), 48);
+        // Large, clear paper checkbox for physical handover marking.
+        $out .= self::strokeRect($x + 10, $y + 14, 12, 12, $ink, 0.9);
+        $asset = self::short((string)($item['asset_id'] ?? ''), 17);
+        $name = self::short((string)($item['name'] ?? ''), 43);
+        $category = self::short((string)($item['category'] ?? ''), 43);
         $condition = trim((string)($item['condition_out'] ?? ''));
         if ($condition === '') {
-            $condition = (($item['quantity_issued'] ?? 0) > 0) ? 'Not recorded' : 'To confirm at issue';
+            $condition = (($item['quantity_issued'] ?? 0) > 0) ? 'Not recorded' : 'Confirm at issue';
         }
         $quantity = (int)($item['quantity_issued'] ?? 0);
         if ($quantity <= 0) { $quantity = (int)($item['quantity_approved'] ?? 0); }
         if ($quantity <= 0) { $quantity = (int)($item['quantity_requested'] ?? 0); }
 
-        $out .= self::text($x + 32, $y + 21, $asset, 7.7, 'F2', [0.000, 0.224, 0.510]);
-        $out .= self::text($x + 112, $y + 22, $name, 8.2, 'F2', $ink);
+        $out .= self::text($x + 40, $y + 24, $asset, 7.6, 'F2', [0.000, 0.224, 0.510]);
+        $out .= self::text($x + 124, $y + 25, $name, 8.1, 'F2', $ink);
         if ($category !== '') {
-            $out .= self::text($x + 112, $y + 11, $category, 6.8, 'F1', $muted);
+            $out .= self::text($x + 124, $y + 12, $category, 6.6, 'F1', $muted);
         }
-        $out .= self::centerText($x + 394, $y + 18, (string)$quantity, 9.4, 'F2', $ink);
-        $out .= self::text($x + 420, $y + 20, self::short($condition, 22), 7.7, 'F2', $ink);
-        $out .= self::line($x + 420, $y + 10, $x + $w - 8, $y + 10, 0.5, $border, [3, 2]);
+        $out .= self::centerText($x + 371, $y + 19, (string)$quantity, 9.2, 'F2', $ink);
+        $out .= self::text($x + 402, $y + 24, self::short($condition, 25), 7.4, 'F2', $ink);
+        $out .= self::line($x + 402, $y + 11, $x + $w - 9, $y + 11, 0.5, $border, [3, 2]);
         return $out;
     }
 
     private static function notesAndSignatures(float $x, float $top, float $w, array $border, array $ink, array $muted): string
     {
-        $leftW = ($w - 10) / 2;
-        $rightX = $x + $leftW + 10;
-        $out = self::text($x, $top, 'ISSUE NOTES', 6.5, 'F2', $muted);
-        $out .= self::text($rightX, $top, 'RETURN NOTES / DAMAGE', 6.5, 'F2', $muted);
-        $out .= self::strokeRect($x, $top - 58, $leftW, 51, $border, 0.7);
-        $out .= self::strokeRect($rightX, $top - 58, $leftW, 51, $border, 0.7);
-        $sigY = $top - 87;
-        $sigW = ($w - 20) / 3;
-        foreach ([['ISSUED BY', $x], ['RECEIVED BY', $x + $sigW + 10], ['RETURNED TO', $x + (($sigW + 10) * 2)]] as [$label, $sx]) {
-            $out .= self::text($sx, $sigY, $label, 6.5, 'F2', $muted);
-            $out .= self::line($sx, $sigY - 17, $sx + $sigW, $sigY - 17, 0.7, $ink);
+        $leftW = ($w - 12) / 2;
+        $rightX = $x + $leftW + 12;
+        $out = self::text($x, $top, 'ISSUE NOTES', 6.4, 'F2', $muted);
+        $out .= self::text($rightX, $top, 'RETURN NOTES / DAMAGE', 6.4, 'F2', $muted);
+        // Taller, purpose-built write areas use the otherwise empty lower page.
+        $out .= self::strokeRect($x, $top - 69, $leftW, 61, $border, 0.7);
+        $out .= self::strokeRect($rightX, $top - 69, $leftW, 61, $border, 0.7);
+        $sigY = $top - 99;
+        $sigW = ($w - 24) / 3;
+        foreach ([['ISSUED BY', $x], ['RECEIVED BY', $x + $sigW + 12], ['RETURNED TO', $x + (($sigW + 12) * 2)]] as [$label, $sx]) {
+            $out .= self::text($sx, $sigY, $label, 6.4, 'F2', $muted);
+            $out .= self::line($sx, $sigY - 18, $sx + $sigW, $sigY - 18, 0.7, $ink);
         }
         return $out;
     }
@@ -240,10 +257,10 @@ final class EquipmentBookingSummaryPdf
     {
         return [
             ['x' => $x],
-            ['x' => $x + 28],
-            ['x' => $x + 108],
-            ['x' => $x + 377],
-            ['x' => $x + 412],
+            ['x' => $x + 34],
+            ['x' => $x + 118],
+            ['x' => $x + 352],
+            ['x' => $x + 394],
         ];
     }
 

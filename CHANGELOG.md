@@ -1,35 +1,30 @@
 # Changelog
 
+## v1.13
+- Refined the server-generated **A4 portrait Equipment Booking Summary PDF** for clearer paper handovers.
+- Reduced unused white space in the heading and booking-details area.
+- Rebuilt the booking details panel into a compact Event/Status row with Booking User, Collection From and Return By underneath; the print date now sits beside the booking reference.
+- Improved the item checklist table with better column proportions, larger check boxes, wider Asset ID and Condition Out cells, clearer headings, and more consistent item-row spacing.
+- Increased the size of the issue and return note areas, tightened the gap below the final table row, and aligned signature lines consistently.
+
+## v1.12
+- Replaced the equipment-booking PDF export dependency with a built-in PDF renderer.
+- **Download PDF** now generates a real A4 portrait PDF even when Composer or the former Dompdf component is not installed.
+- Added a packaged, print-ready group logo JPEG used by the generated PDF.
+- Updated deployment so a Composer failure no longer prevents the system update or PDF export; SMTP email still needs Composer packages when configured.
+
 ## v1.11
 - Added a real server-generated **Download PDF** export for equipment booking summaries.
 - The export is an A4 portrait PDF with the Group logo, booking reference, event, status, booking user, printed date/time, collection and return details, equipment holder, item check boxes, Asset IDs, quantities, condition-out fields, notes and signatures.
 - The existing browser-based print screen is now labelled **Print preview** to make the difference clear.
 
+## v1.10
+- Changed the Equipment Booking Summary print layout to **A4 portrait**.
+
 ## v1.9
 - Redesigned the printable equipment booking summary as a logo-branded handover sheet.
-- Added Event, Status, Booking user, Printed on date/time, booking reference and collection/return dates.
-- Added Asset ID, equipment item, quantity, status/condition out and a check-off box for every item.
-- Added issue/return note areas and signature lines for a complete paper handover record.
 
-v1.8
-
+## v1.8
 - Added downloadable CSV and print/PDF-ready summaries for every equipment booking.
-- Added a dedicated equipment booking detail page with requested, approved, issued, returned and outstanding quantities.
-- Added controlled **book out** and **book back in** actions for Admin, GSL, Chairperson and QM.
-- Every issue and return now records a permanent custody-history entry: item, booking, quantity, responsible person, condition, timestamp and the user who completed the handover.
-- Equipment item pages now show **Who has had this item** and link directly to the relevant booking history.
-- Approving a booking now records the approved quantity for every requested item.
-- Removed the **Booking type** field from Hut booking requests. All new records retain the internal default `Hut booking` value for backward compatibility.
-
-## v1.10
-
-- Changed the Equipment Booking Summary print layout to **A4 portrait**.
-- Tightened table widths, typography and metadata layout so the booking handover checklist remains readable on a portrait page.
-- Preserved the logo, booking information, tick boxes, issue/return notes and signature fields.
-
-## v1.12
-
-- Replaced the equipment-booking PDF export dependency with a built-in PDF renderer.
-- **Download PDF** now generates a real A4 portrait PDF even when Composer or the former Dompdf component is not installed.
-- Added a packaged, print-ready group logo JPEG used by the generated PDF.
-- Updated deployment so a Composer failure no longer prevents the system update or PDF export; SMTP email still needs Composer packages when configured.
+- Added controlled equipment issue/return with custody history.
+- Removed the Booking type field from Hut booking requests.
