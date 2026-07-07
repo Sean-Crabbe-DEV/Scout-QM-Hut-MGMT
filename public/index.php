@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/../app/bootstrap.php';
+require_once __DIR__ . '/../app/simple_equipment_booking_pdf.php';
 
 function nav_item(string $href, string $icon, string $label, bool $exact = false): void
 {
@@ -20,7 +21,7 @@ function page_start(string $title, bool $public = false): void
     $logoSvg = is_file(__DIR__ . '/assets/brand/group-logo-red.svg') ? '/assets/brand/group-logo-red.svg' : (is_file(__DIR__ . '/assets/brand/group-logo-red.png') ? '/assets/brand/group-logo-red.png' : null);
     ?><!doctype html>
     <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-    <title><?= e($title) ?> · <?= e($group) ?></title><link rel="stylesheet" href="/assets/css/app.css?v=1.11">
+    <title><?= e($title) ?> · <?= e($group) ?></title><link rel="stylesheet" href="/assets/css/app.css?v=1.12">
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800;6..12,900&display=swap" rel="stylesheet"></head><body>
     <header class="topbar"><div class="brand"><?php if ($logoSvg): ?><img src="<?= e($logoSvg) ?>" alt="<?= e($group) ?>"><?php else: ?><span class="brand-mark">⚜</span><?php endif; ?><div><strong><?= e($group) ?></strong><span>Hut Management</span></div></div>
@@ -644,29 +645,11 @@ try {
         if (!$booking) { http_response_code(404); exit('Equipment booking not found.'); }
         if (!can_approve_equipment() && (int)$booking['requester_user_id'] !== (int)current_user()['id']) { http_response_code(403); exit('You cannot export this booking.'); }
 
-        $autoload = APP_ROOT . '/vendor/autoload.php';
-        if (!is_file($autoload)) {
-            http_response_code(503);
-            exit('PDF generation is not installed yet. Run the v1.11 deploy update again so Composer can install the PDF component.');
-        }
-        require_once $autoload;
-        if (!class_exists(\Dompdf\Dompdf::class)) {
-            http_response_code(503);
-            exit('PDF generation is not available. Run the v1.11 deploy update again so Composer can install the PDF component.');
-        }
-
         $items = all('SELECT ebi.*, e.asset_id, e.name, e.category FROM equipment_booking_items ebi JOIN equipment e ON e.id=ebi.equipment_id WHERE ebi.equipment_booking_id=? ORDER BY e.category,e.name', [$booking['id']]);
-        $options = new \Dompdf\Options();
-        $options->set('defaultFont', 'DejaVu Sans');
-        $options->set('isRemoteEnabled', false);
-        $options->set('isHtml5ParserEnabled', true);
-        $dompdf = new \Dompdf\Dompdf($options);
-        $dompdf->setPaper('A4', 'portrait');
-        $dompdf->loadHtml(equipment_booking_pdf_html($booking, $items), 'UTF-8');
-        $dompdf->render();
-
-        $filename = 'equipment-booking-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $booking['reference']) . '.pdf';
-        $pdfOutput = $dompdf->output();
+        $group = setting('group_name', env('APP_NAME', 'Scout Hut Management'));
+        $logoPath = __DIR__ . '/assets/brand/group-logo-red.jpg';
+        $pdfOutput = EquipmentBookingSummaryPdf::render($booking, $items, $group, $logoPath);
+        $filename = 'equipment-booking-' . preg_replace('/[^A-Za-z0-9_-]/', '-', (string)$booking['reference']) . '.pdf';
         header('Content-Type: application/pdf');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
         header('Content-Length: ' . strlen($pdfOutput));

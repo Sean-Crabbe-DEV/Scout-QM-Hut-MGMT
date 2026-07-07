@@ -88,8 +88,8 @@ sudo bash update.sh
 This release also includes `deploy-update.sh`, which keeps the existing `.env`, uploaded files and backups. Extract the downloaded current release ZIP, then run:
 
 ```bash
-cd /path/to/scout-hut-mgmt-v1.11
-sudo bash deploy-update.sh /path/to/scout-hut-mgmt-v1.11
+cd /path/to/scout-hut-mgmt-v1.12
+sudo bash deploy-update.sh /path/to/scout-hut-mgmt-v1.12
 ```
 
 Use this instead of re-running `install.sh`.
@@ -138,6 +138,6 @@ The printable equipment booking summary has been redesigned for handover use. It
 The printable Equipment Booking Summary is configured for A4 portrait orientation. Open **Print summary** from an equipment booking and choose **Save as PDF** in the browser print window.
 
 
-## v1.11 — real PDF equipment booking summary
+## v1.12 - built-in PDF equipment booking summary
 
-The equipment booking page now includes **Download PDF**. This generates and downloads a real A4 portrait PDF file from the server; it is no longer dependent on the browser print dialog. The first v1.11 deployment installs the required PHP PDF component through Composer. The existing **Print preview** remains available for a quick browser printout.
+The equipment booking page includes **Download PDF**. It creates and downloads a real A4 portrait PDF directly from the server without relying on the browser print dialog or a separately installed PDF component. The existing **Print preview** remains available for a quick browser printout.

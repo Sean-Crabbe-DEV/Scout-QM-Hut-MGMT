@@ -12,7 +12,7 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 if [[ -z "$SOURCE_DIR" || ! -f "$SOURCE_DIR/public/index.php" ]]; then
-  echo "Usage: sudo bash deploy-update.sh /path/to/extracted/scout-hut-mgmt-v1.11"
+  echo "Usage: sudo bash deploy-update.sh /path/to/extracted/scout-hut-mgmt-v1.12"
   exit 1
 fi
 if [[ ! -f "$APP_DIR/.env" ]]; then
@@ -33,9 +33,9 @@ if command -v mysqldump >/dev/null 2>&1; then
   mysqldump --single-transaction --routines --triggers \
     -h "${DB_HOST:-127.0.0.1}" -P "${DB_PORT:-3306}" \
     -u "$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" \
-    | gzip > "$BACKUP_DIR/database-before-v1.11-${STAMP}.sql.gz"
+    | gzip > "$BACKUP_DIR/database-before-v1.12-${STAMP}.sql.gz"
 fi
-cp "$APP_DIR/.env" "$BACKUP_DIR/env-before-v1.11-${STAMP}.backup"
+cp "$APP_DIR/.env" "$BACKUP_DIR/env-before-v1.12-${STAMP}.backup"
 
 # Preserve runtime data and credentials. --delete removes obsolete application files only.
 rsync -a --delete \
@@ -46,7 +46,13 @@ rsync -a --delete \
 
 mkdir -p "$APP_DIR/storage/uploads" "$APP_DIR/storage/logs" "$APP_DIR/storage/backups"
 if [[ -f "$APP_DIR/composer.json" ]]; then
-  composer install --working-dir="$APP_DIR" --no-dev --prefer-dist --optimize-autoloader --no-interaction
+  if command -v composer >/dev/null 2>&1; then
+    if ! composer install --working-dir="$APP_DIR" --no-dev --prefer-dist --optimize-autoloader --no-interaction; then
+      echo "Warning: Composer dependencies could not be installed. PDF exports still work because v1.12 uses the built-in PDF renderer; SMTP email needs Composer to be fixed separately."
+    fi
+  else
+    echo "Warning: Composer is not installed. PDF exports still work; SMTP email dependencies were not refreshed."
+  fi
 fi
 php "$APP_DIR/scripts/migrate.php"
 chown -R www-data:www-data "$APP_DIR/storage"
@@ -59,5 +65,5 @@ PHP_SERVICE="$(systemctl list-unit-files --type=service | awk '/^php[0-9.]+-fpm\
 if [[ -n "$PHP_SERVICE" ]]; then systemctl restart "$PHP_SERVICE"; fi
 nginx -t && systemctl reload nginx
 
-echo "Scout Hut Management v1.11 deployed."
-echo "Backup: $BACKUP_DIR/database-before-v1.11-${STAMP}.sql.gz"
+echo "Scout Hut Management v1.12 deployed."
+echo "Backup: $BACKUP_DIR/database-before-v1.12-${STAMP}.sql.gz"

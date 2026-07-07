@@ -26,3 +26,10 @@ v1.8
 - Changed the Equipment Booking Summary print layout to **A4 portrait**.
 - Tightened table widths, typography and metadata layout so the booking handover checklist remains readable on a portrait page.
 - Preserved the logo, booking information, tick boxes, issue/return notes and signature fields.
+
+## v1.12
+
+- Replaced the equipment-booking PDF export dependency with a built-in PDF renderer.
+- **Download PDF** now generates a real A4 portrait PDF even when Composer or the former Dompdf component is not installed.
+- Added a packaged, print-ready group logo JPEG used by the generated PDF.
+- Updated deployment so a Composer failure no longer prevents the system update or PDF export; SMTP email still needs Composer packages when configured.
